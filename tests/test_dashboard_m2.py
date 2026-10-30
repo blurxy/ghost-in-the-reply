@@ -443,7 +443,7 @@ def test_the_audience_never_sees_raw_evidence_or_file_names_on_the_stage():
 def test_the_step_copy_uses_plain_words_for_the_audience():
     from dashboard import steps
 
-    text = " ".join(steps.all_text())
+    text = " ".join(steps.audience_text())  # the lines Rafi says aloud may name JSON; the projector does not
     assert "JSON" not in text and "hidden_html" not in text and "format_char" not in text
     assert "fills in a small form" in text
 
@@ -479,7 +479,7 @@ def test_the_project_is_called_haunted_inbox_everywhere_the_dashboard_says_its_n
     for path in sorted(root.glob("*.py")) + [Path(PAGE)]:
         assert "Ghost in the Reply" not in path.read_text(encoding="utf-8"), path.name
     title = steps.STEPS[0]
-    assert title["headline"] == "Haunted Inbox" and title["say"] == "Haunted Inbox."
+    assert title["headline"] == "Haunted Inbox" and title["say"].startswith("Haunted Inbox. ")  # DEMO-SCRIPT's opening
     assert "<title>Haunted Inbox</title>" in Path(PAGE).read_text(encoding="utf-8")
     assert steps.REPO_URL == "github.com/blurxy/ghost-in-the-reply"  # the repo keeps its name
     text = " ".join(steps.all_text())

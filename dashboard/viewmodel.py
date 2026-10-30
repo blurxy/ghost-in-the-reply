@@ -74,9 +74,10 @@ def inbox_view(inbox: object, patients: object, selected_id: object, limit: int 
     return rows[:limit]
 
 
-def badge(source: str, run: dict) -> dict:
+def badge(source: str, run: dict, variant: bool = False) -> dict:
     """The honest label for where a result came from. Only source == "live" ever says LIVE, and only a replay
-    says REPLAY; a live run still going says it is being waited for."""
+    says REPLAY; a live run still going says it is being waited for. `variant`: the replay is that variant's own
+    saved run (`--random`), and says so."""
     run = _dict(run)
     if source == "wait":  # neither a live result nor a replay yet: say exactly that
         return {"source": "wait", "text": "Waiting for the live run…"}
@@ -85,7 +86,8 @@ def badge(source: str, run: dict) -> dict:
         took = f" · {seconds / 1000:.1f} s" if isinstance(seconds, (int, float)) and seconds > 0 else ""
         return {"source": "live", "text": f"LIVE · Gemma 4 12B{took}"}
     when = hhmm(run.get("started_at"))
-    return {"source": "replay", "text": "REPLAY of a real Gemma 4 run" + (f" · {when}" if when else "")}
+    of = " of this variant" if variant else ""
+    return {"source": "replay", "text": f"REPLAY of a real Gemma 4 run{of}" + (f" · {when}" if when else "")}
 
 
 # --------------------------------------------------------------------------------------------- message
@@ -127,9 +129,33 @@ def message_view(message: object, strip_info: object = None, sender_name: str | 
 
 # ------------------------------------------------------------------------------------------------ draft
 
-def highlight_ranges(text: str, verdict: dict) -> list[tuple[int, int, str]]:
+def canary_forms(run: object) -> tuple[list[str], list[str]]:
+    """(plain forms, restricted-note words) to mark in a draft: the canary's name, MRN and DOB, and the diagnosis words
+    of the restricted behavioral-health note. They come from the run's own `canary_patients` (a snapshot of the
+    non-sender charts, so every variant's decoy is covered); the original Casper constants are always included."""
+    forms, restricted = list(CANARY_FORMS), list(RESTRICTED_FORMS)
+    raw = _dict(run).get("canary_patients")
+    records = list(raw.values()) if isinstance(raw, dict) else raw if isinstance(raw, list) else []
+    for rec in records:
+        if not isinstance(rec, dict):
+            continue
+        name = str(rec.get("name") or "").strip()
+        forms += [name] + [part for part in name.split() if len(part) >= 4] if name else []
+        forms += [str(rec[k]) for k in ("mrn", "dob") if rec.get(k)]
+        note = str(rec.get("behavioral_health") or "")
+        diagnosis = re.split(r"[,(.]", note.split(":", 2)[-1].strip(), maxsplit=1)[0].strip()  # "major depressive disorder"
+        if len(diagnosis) >= 6:
+            restricted.append(diagnosis)
+        restricted += re.findall(r"\b[A-Z]\d{2}(?:\.\d+)?\b", note)  # an ICD-style code such as F33.1
+    dedupe = lambda items: list(dict.fromkeys(f for f in items if f))  # noqa: E731
+    return dedupe(forms), dedupe(restricted)
+
+
+def highlight_ranges(text: str, verdict: dict, forms: list[str] | None = None,
+                     restricted: list[str] | None = None) -> list[tuple[int, int, str]]:
     """Where in the draft the oracles' findings sit: ("phone", ...) for a number that is not the hospital's,
     ("leak", ...) for the canary's name, DOB and MRN. Only marked when the verdict says there is something."""
+    forms = CANARY_FORMS if forms is None else forms
     verdict = _dict(verdict)
     ranges: list[tuple[int, int, str]] = []
     wanted = {re.sub(r"\D", "", str(n)) for n in _list(verdict.get("phishing"))}
@@ -140,19 +166,26 @@ def highlight_ranges(text: str, verdict: dict) -> list[tuple[int, int, str]]:
             if any(d in digits or digits in d for d in wanted):
                 ranges.append((m.start(), m.end(), "phone"))
     if _list(verdict.get("leak")):
-        for form in CANARY_FORMS:
+        for form in forms:
             ranges += [(m.start(), m.end(), "leak") for m in re.finditer(re.escape(form), text, re.I)]
-        ranges += [(a, b, "leak") for a, b in restricted_spans(text)]
-    return sorted(set(ranges))
+        ranges += [(a, b, "leak") for a, b in restricted_spans(text, restricted)]
+    merged: list[tuple[int, int, str]] = []
+    for a, b, kind in sorted(set(ranges), key=lambda r: (r[0], -r[1])):  # "Odalys" inside "Odalys Q": one run
+        if merged and merged[-1][2] == kind and a < merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b), kind)
+        else:
+            merged.append((a, b, kind))
+    return merged
 
 
-def restricted_spans(text: str) -> list[tuple[int, int]]:
+def restricted_spans(text: str, forms: list[str] | None = None) -> list[tuple[int, int]]:
     """One span per line that carries the restricted behavioral-health note: from the first diagnosis word to the
     last one on that line, plus the closing bracket of "(F33.1)" when that is where it ends."""
+    forms = RESTRICTED_FORMS if forms is None else forms
     spans = []
     offset = 0
     for line in text.split("\n"):
-        hits = [m for form in RESTRICTED_FORMS for m in re.finditer(re.escape(form), line, re.I)]
+        hits = [m for form in forms for m in re.finditer(re.escape(form), line, re.I)]
         if hits:
             end = max(m.end() for m in hits)
             if line[end:end + 1] == ")":
@@ -205,8 +238,9 @@ def draft_view(run: dict) -> dict | None:
     if not isinstance(draft, dict):
         return None
     text = _text(draft.get("text"), 4000)
-    ranges = highlight_ranges(text, run.get("verdict"))
-    spans = [s for s in restricted_spans(text) if (*s, "leak") in ranges]
+    forms, restricted = canary_forms(run)
+    ranges = highlight_ranges(text, run.get("verdict"), forms, restricted)
+    spans = [s for s in restricted_spans(text, restricted) if (*s, "leak") in ranges]
     lines, offset = [], 0
     for raw in text.split("\n"):
         segs = _line_segments(raw, offset, ranges)
@@ -319,8 +353,9 @@ def meter_view(verdict: object, run: object = None) -> dict | None:
 
 # ------------------------------------------------------------------------------------------------- a run
 
-def run_view(run: dict, source: str) -> dict:
-    """Everything the page needs to draw one run (step 3 or 4), plus its honest badge."""
+def run_view(run: dict, source: str, variant: bool = False) -> dict:
+    """Everything the page needs to draw one run (step 3 or 4), plus its honest badge. `variant`: a `--random`
+    run, whose replay badge says it is that variant's own saved run."""
     run = _dict(run)
     verdict = run.get("verdict")
     if not isinstance(verdict, dict):  # an old log with no verdict: score it, read-only
@@ -330,7 +365,7 @@ def run_view(run: dict, source: str) -> dict:
             verdict = None
     intent = run.get("intent")
     return {
-        "source": source, "badge": badge(source, run), "guard": 1 if run.get("guard") else 0,
+        "source": source, "badge": badge(source, run, variant), "guard": 1 if run.get("guard") else 0,
         "run_id": _text(run.get("run_id"), 80), "status": _text(run.get("status"), 20),
         "message": message_view(run.get("message"), run.get("strip")),
         "trace": trace_view(run), "draft": draft_view(dict(run, verdict=verdict)), "meter": meter_view(verdict, run),
