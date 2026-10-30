@@ -78,10 +78,18 @@ class Handler(BaseHTTPRequestHandler):
             pass
 
 
+class DashboardServer(ThreadingHTTPServer):
+    """Never shares a port: if anything already holds it, binding fails instead of quietly serving beside it, so a
+    presenter can't end up looking at some other project's page."""
+
+    allow_reuse_address = False
+    allow_reuse_port = False
+    daemon_threads = True
+
+
 def make_server(state: DashboardState, host: str = "127.0.0.1", port: int = 8765,
                 page: Path = PAGE) -> ThreadingHTTPServer:
-    """A server for this state. Pass port 0 to let the OS pick one (the tests do)."""
+    """A server for this state. Pass port 0 to let the OS pick one (the tests do). Raises OSError if the port is
+    taken."""
     handler = type("BoundHandler", (Handler,), {"state": state, "page": page})
-    server = ThreadingHTTPServer((host, port), handler)
-    server.daemon_threads = True
-    return server
+    return DashboardServer((host, port), handler)

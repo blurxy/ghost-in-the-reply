@@ -18,6 +18,7 @@ from .steps import STEPS
 from .viewmodel import badge, message_view, run_view
 
 ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode")
+PREFLIGHT_EVERY_S = 10.0
 REPLAY_FILES = {0: "msg-004-guard0.json", 1: "msg-004-guard1.json"}
 
 
@@ -44,6 +45,8 @@ class DashboardState:
                 self.replay_error = f"{name}: {type(exc).__name__}"
         self._preflight = preflight
         self._preflight_result: list[dict] = []
+        self._preflight_at = 0.0
+        self._preflight_busy = False
         self.refresh_preflight()
         if self.live is not None and self.mode == "live":
             self.live.start()  # step 0 is open: start both live runs now
@@ -54,6 +57,11 @@ class DashboardState:
         """Run the checks on a thread, so a slow check never holds up the page."""
         if self._preflight is None:
             return
+        with self._lock:
+            if self._preflight_busy:
+                return
+            self._preflight_busy = True
+            self._preflight_at = self._clock()
 
         def work() -> None:
             try:
@@ -62,6 +70,7 @@ class DashboardState:
                 result = [{"id": "error", "label": "Preflight", "state": "fail", "detail": "the checks crashed"}]
             with self._lock:
                 self._preflight_result = result
+                self._preflight_busy = False
 
         threading.Thread(target=work, daemon=True).start()
 
@@ -72,6 +81,8 @@ class DashboardState:
         choice = resolve(self.mode, guard, outcome)
         if choice.source == "live" and outcome is not None and isinstance(outcome.run, dict):
             return choice, outcome.run
+        if choice.source == "wait":
+            return choice, None  # a live run still inside its timeout: the screen waits, it shows no replay
         return Choice("replay", choice.reason, choice.warning), self.replay.get(guard)
 
     # ----------------------------------------------------------------------------------------- the API
@@ -79,6 +90,8 @@ class DashboardState:
     def snapshot(self) -> dict:
         with self._lock:
             now = self._clock()
+            if self._preflight is not None and now - self._preflight_at > PREFLIGHT_EVERY_S:
+                self.refresh_preflight()  # pills follow reality: the model finishes loading, the power profile changes
             runs = {}
             for guard in (0, 1):
                 choice, run = self._choice(guard)
@@ -87,6 +100,9 @@ class DashboardState:
                     "badge": badge(choice.source, run or {}),
                     "run_id": (run or {}).get("run_id", ""),
                 }
+                if choice.source == "wait" and self.live is not None:
+                    waiting = self.live.outcome(guard)
+                    runs[str(guard)]["wait"] = {"elapsed": round(waiting.elapsed, 1), "timeout": waiting.timeout}
             version = "|".join(f"{g}:{r['source']}:{r['run_id']}" for g, r in runs.items()) + f"|{self.mode}"
             return {
                 "step": self.step, "n": len(STEPS), "epoch": self.epoch, "mode": self.mode,
