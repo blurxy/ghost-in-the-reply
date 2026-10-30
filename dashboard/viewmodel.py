@@ -72,11 +72,49 @@ def inbox_view(inbox: object, patients: object, selected_id: object, limit: int 
         name = _dict(patients.get(message.get("sender_patient_id"))).get("name") or message.get("sender_patient_id")
         rows.append({"id": _text(mid, 40), "from": _text(name, 60), "subject": _text(message.get("subject"), 80).replace("\n", " "),
                      "when": human_when(message.get("received_at")), "_t": str(message.get("received_at", "")),
-                     "unread": mid == selected_id, "selected": mid == selected_id})
+                     "unread": mid == selected_id, "selected": mid == selected_id,
+                     "label": INBOX_LABELS.get(message.get("expected_intent"), ""), "preview": _preview(message)})
     rows.sort(key=lambda r: (not r["selected"], [-ord(c) for c in r["_t"]]))  # selected first, then newest first
+    rows = rows[:limit]
+    stamps = [t for t in (_when(r["_t"]) for r in rows) if t is not None]
+    newest = max(stamps) if stamps else None
     for row in rows:
+        row["short"] = short_when(row["_t"], newest)
         del row["_t"]
-    return rows[:limit]
+    return rows
+
+
+INBOX_LABELS = {"reschedule": "Scheduling", "refill_request": "Refills", "billing": "Billing"}
+
+
+def _preview(message: dict) -> str:
+    """The message's first words on one line, as a mail list shows them."""
+    try:
+        text = re.sub(r"\s+", " ", rendered(str(message.get("body_html") or ""))).strip()
+    except Exception:
+        return ""
+    return _text(text[:90] + ("…" if len(text) > 90 else ""), 100)
+
+
+def _when(value: object) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
+def short_when(value: object, newest: datetime | None) -> str:
+    """"10:20 AM" for the newest day, "Yesterday" the day before, then the weekday ("Mon"): the time column of a list."""
+    when = _when(value)
+    if when is None:
+        return ""
+    if newest is not None:
+        days = (newest.date() - when.date()).days
+        if days == 1:
+            return "Yesterday"
+        if days > 1:
+            return when.strftime("%a")
+    return when.strftime("%I:%M %p").lstrip("0")
 
 
 def badge(source: str, run: dict, variant: bool = False) -> dict:
@@ -111,7 +149,7 @@ def _segment(seg: tuple) -> dict:
 def message_view(message: object, strip_info: object = None, sender_name: str | None = None) -> dict:
     """The message as staff see it (folded, like a portal preview) and as the model is given it (seance)."""
     message = _dict(message)
-    body = str(message.get("body_html", ""))
+    body = str(message.get("body_html") or "")
     removed = _dict(strip_info).get("removed")
     if not isinstance(removed, list):
         removed = strip(body)[1]
