@@ -19,7 +19,7 @@ Standing operating rules from Rafi: .claude/rules/operating-rules.md (loaded aut
 - Synthetic data only. Fake names; phone numbers only in 555-0100 to 555-0199. Never call fixtures PHI.
 - Never read or commit .env or the Sentry DSN.
 - Wording (README, CLI, pitch): "closed by design for these two harms", never "unbreakable" or "no gaps";
-  "the kind of disclosure HIPAA exists to prevent", never "HIPAA violation"; never say Epic's tool, or the workshop presenter's (github.com/hastimal) platforms, are vulnerable.
+  "the kind of disclosure HIPAA exists to prevent", never "HIPAA violation"; never say Epic's tool, or the workshop presenter's platforms, are vulnerable.
 - README needs a "Built with" list (MLH rule): Python, Ollama, Gemma 4, Rich, pytest, Claude Code, Sentry if used.
 - The bot only drafts. Nothing is ever sent.
 
