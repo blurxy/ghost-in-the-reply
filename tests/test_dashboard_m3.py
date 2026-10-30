@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import copy
 import json
+import threading
 import random
 import re
 from pathlib import Path
@@ -297,6 +298,99 @@ def test_every_say_line_is_the_demo_scripts_canonical_line():
     assert set(lines) == {s["id"] for s in steps.STEPS}
     for step in steps.STEPS:
         assert step["say"] == lines[step["id"]], step["id"]
+
+
+# ----------------------------------------------------------------------- live runs that have gone stale (Rafi: 10 min)
+
+def run_live(clock, hold: threading.Event | None = None):
+    """A LiveRunner on a fake clock whose runs finish at once (or when `hold` is set); returns (runner, calls)."""
+    from test_dashboard import good_run
+
+    from dashboard.live import LiveRunner
+
+    calls: list[int] = []
+
+    def run_fn(guard):
+        calls.append(guard)
+        if hold is not None:
+            hold.wait(5)
+        return good_run(guard)
+
+    runner = LiveRunner(run_fn, clock=clock)
+    runner.start()
+    return runner, calls
+
+
+def wait_for(predicate, seconds: float = 3.0) -> None:
+    import time
+
+    end = time.time() + seconds
+    while not predicate() and time.time() < end:
+        time.sleep(0.005)
+    assert predicate()
+
+
+def test_a_runner_knows_how_old_its_finished_results_are():
+    clock = Clock(100.0)
+    runner, calls = run_live(clock)
+    wait_for(lambda: runner.age() is not None)
+    assert runner.age() == 0.0 and calls == [0, 1]
+    clock.t += 42
+    assert runner.age() == 42.0
+
+
+def test_a_fresh_result_is_kept_when_the_title_opens_again():
+    clock = Clock(1000.0)
+    runner, calls = run_live(clock)
+    wait_for(lambda: runner.age() is not None)
+    state = DashboardState(DEMO, live=runner, mode="live", clock=clock)
+    state.act("goto", 3)
+    clock.t += 599
+    state.act("goto", 0)
+    state.snapshot()
+    assert calls == [0, 1]  # nothing re-run: going back and forth costs the GPU nothing
+
+
+def test_a_result_older_than_ten_minutes_is_run_again_when_the_title_opens():
+    clock = Clock(1000.0)
+    runner, calls = run_live(clock)
+    wait_for(lambda: runner.age() is not None)
+    state = DashboardState(DEMO, live=runner, mode="live", clock=clock)
+    state.act("goto", 3)
+    clock.t += 601
+    state.snapshot()
+    assert calls == [0, 1]  # not on a run screen: the demo is mid-flight, nothing moves
+    state.act("goto", 0)
+    wait_for(lambda: len(calls) == 4 and runner.age() is not None)
+    assert calls == [0, 1, 0, 1] and runner.age() == 0.0  # the badge on stage now sits on a result from just now
+
+
+def test_opening_the_title_hours_later_runs_both_again_without_any_key():
+    clock = Clock(1000.0)
+    runner, calls = run_live(clock)
+    wait_for(lambda: runner.age() is not None)
+    state = DashboardState(DEMO, live=runner, mode="live", clock=clock)  # the server has been up since 2 PM; the page opens at 4
+    clock.t += 7200
+    state.snapshot()
+    wait_for(lambda: len(calls) == 4)
+    assert calls == [0, 1, 0, 1]
+
+
+def test_a_run_still_going_is_never_restarted_by_the_title():
+    import threading
+
+    clock = Clock(1000.0)
+    hold = threading.Event()
+    runner, calls = run_live(clock, hold)
+    wait_for(lambda: calls == [0])
+    state = DashboardState(DEMO, live=runner, mode="live", clock=clock)
+    clock.t += 7200
+    assert runner.age() is None
+    state.snapshot()
+    state.act("goto", 0)
+    assert calls == [0]  # one run in flight, no second thread piling onto the GPU
+    hold.set()
+    wait_for(lambda: runner.age() is not None)
 
 
 # --------------------------------------------------------------------------------------- command-line flags
