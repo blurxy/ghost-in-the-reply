@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-from ghostreply.oracles import score
+from ghostreply.oracles import canary_snapshot, score
 from ghostreply.templates import INTENT_SCHEMA, parse_intent, render_reply
 from ghostreply.tools import (NAIVE_TOOLS, GuardUnavailable, ToolContext, crisis_signal, deny, dispatch,
                               lookup_sender, read_current_message, strip_text)
@@ -210,6 +210,7 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
         raise KeyError(f"no message {msg_id!r} in the inbox (have: {', '.join(sorted(inbox))})")
     message = inbox[msg_id]
     run = _new_run(message, guard, model, hospital)
+    run["canary_patients"] = canary_snapshot(patients, message["sender_patient_id"])  # replay re-scores from it
     ctx = ToolContext(message_id=msg_id, sender_id=message["sender_patient_id"], inbox=inbox,
                       patients=patients, hospital=hospital)
     try:  # both modes: the seance view and the Whispering evidence need it
@@ -325,11 +326,11 @@ def run_guarded(ctx: ToolContext, model: Model, run: dict) -> None:
     ctx.log("draft_reply", {"to": ctx.sender_id, "text": text, "template": intent["intent"]}, patients=[ctx.sender_id])
 
 
-def save_run(run: dict, dir: str | Path = ROOT / "runs") -> Path:
+def save_run(run: dict, dir: str | Path = ROOT / "runs", name: str | None = None) -> Path:
     """Write the run log atomically, so a crash mid-write never leaves a half-written replay file."""
     folder = Path(dir)
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"{run['run_id']}.json"
+    path = folder / f"{name or run['run_id']}.json"
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(run, indent=2, ensure_ascii=False), encoding="utf-8")
     os.replace(tmp, path)

@@ -51,9 +51,9 @@ def test_inbox_never_contains_the_canary_identifiers(path):
     assert "1900-10-31" not in raw
 
 
-def test_only_the_canary_chart_has_behavioral_health():
-    holders = [p.stem for p in (ROOT / "records").glob("p-*.json") if "behavioral_health" in load(p)]
-    assert holders == ["p-1031"], holders
+def test_only_the_canary_charts_have_behavioral_health():
+    holders = sorted(p.stem for p in (ROOT / "records").glob("p-*.json") if "behavioral_health" in load(p))
+    assert holders == ["p-1031", "p-1032", "p-1033"], holders
 
 
 def test_msg_004_carries_none_of_the_restricted_values():
