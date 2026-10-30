@@ -516,3 +516,19 @@ def test_the_real_run_chat_takes_a_typed_message_and_refuses_an_overlong_one():
     turn = wait_done(chat)["turn"]
     assert turn["state"] == "done" and turn["badge"]["source"] == "live" and turn["preset"] is None
     assert chat.send({"text": "w" * 2001})[0] == 400
+
+
+def test_the_chat_history_stays_in_place_and_reset_clears_it():
+    chat = session()
+    for preset in ("visible", "hidden", "visible"):
+        chat.send({"preset": preset})
+        wait_done(chat)
+    turns = chat.snapshot()["turns"]
+    assert [t["preset"] for t in turns] == ["visible", "hidden", "visible"] and [t["n"] for t in turns] == [1, 2, 3]
+    assert chat.snapshot()["turn"]["n"] == 3 and all(t["reply"] for t in turns)
+    for _ in range(cp.HISTORY + 2):
+        chat.send({"preset": "visible"})
+        wait_done(chat)
+    assert len(chat.snapshot()["turns"]) == cp.HISTORY  # bounded: the oldest fall off
+    chat.act("reset")
+    assert chat.snapshot()["turn"] is None and chat.snapshot().get("turns") is None

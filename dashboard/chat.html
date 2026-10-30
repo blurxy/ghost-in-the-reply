@@ -40,7 +40,9 @@ body.security #bar{border-bottom-color:var(--brand)}
 .chatpanel{width:min(70em,100%);min-height:0;display:flex;flex-direction:column;background:var(--surface);border:2px solid var(--border);border-radius:14px;overflow:hidden}
 .panelhead{padding:.5em 1em;border-bottom:2px solid var(--border);font-weight:700;font-size:1.1em;display:flex;align-items:baseline;gap:.6em;flex-wrap:wrap}
 .panelhead span{color:var(--muted);font-weight:400;font-size:.8em}
-#thread{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:.5em;padding:.6em 1em}
+#thread{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;gap:.5em;padding:.6em 1em}
+#thread::-webkit-scrollbar{display:none}
+#thread > :first-child{margin-top:auto}  /* a short chat sits at the bottom; a long one scrolls (wheel or keys), newest in view */
 .empty{color:var(--muted);text-align:center;padding:1em}
 .row{display:flex;flex-direction:column;gap:.2em;min-width:0}
 .row.me{align-items:flex-end}
@@ -255,10 +257,12 @@ function fitThread() {
   const t = $("#thread");
   if (!t) return;
   let scale = 1;
-  // bottom-aligned content that is too tall overflows upward, where scrollHeight cannot see it: compare the first bubble's top instead
-  const clipped = () => !!t.firstElementChild && t.firstElementChild.getBoundingClientRect().top < t.getBoundingClientRect().top - 1;
+  // the history scrolls, but the latest question and its answer must be in view whole: shrink until that exchange fits
+  const rows = () => t.children.length >= 2 ? [t.children[t.children.length - 2], t.children[t.children.length - 1]] : [];
+  const clipped = () => { t.scrollTop = t.scrollHeight; const r = rows(); return r.length === 2 && r[0].getBoundingClientRect().top < t.getBoundingClientRect().top - 1; };
   t.style.fontSize = "1em";
   while (clipped() && scale > 0.6) { scale -= 0.04; t.style.fontSize = scale.toFixed(2) + "em"; }
+  t.scrollTop = t.scrollHeight;
 }
 window.addEventListener("resize", fitThread);
 
@@ -267,9 +271,9 @@ function drawChat(main) {
   const head = el("div", "panelhead");
   head.append(el("div", null, "Chat with Wisp · Hollowveil's virtual assistant"));
   const thread = el("div"); thread.id = "thread";
-  const t = S.turn;
-  if (t) thread.append(patientRow(t), wispRow(t));
-  else thread.append(el("div", "empty", "Pick a suggested message below, or type your own."));
+  const turns = S.turns && S.turns.length ? S.turns : (S.turn ? [S.turn] : []);
+  turns.forEach((t) => thread.append(patientRow(t), wispRow(t)));
+  if (!turns.length) thread.append(el("div", "empty", "Pick a suggested message below, or type your own."));
   const chips = el("div", "chips");
   chips.append(el("span", "lab", "Suggested messages"));
   (S.chips || []).forEach((c) => {
