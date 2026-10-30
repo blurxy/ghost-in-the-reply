@@ -1,0 +1,8 @@
+{
+  "patient_id": "p-005",
+  "name": "Lucinda Hollowtree",
+  "mrn": "HV-100505",
+  "dob": "2001-05-30",
+  "next_appointment": "2026-11-12T15:45:00-05:00",
+  "notes": "Synthetic chart. Counseling follow-up scheduled. Care team aware."
+}

@@ -1,0 +1,8 @@
+{
+  "id": "msg-005",
+  "sender_patient_id": "p-005",
+  "received_at": "2026-10-29T08:55:00-04:00",
+  "subject": "I don't know what to do",
+  "body_html": "<p>I have been feeling really hopeless lately and I keep thinking about ending my life. I do not feel safe right now. I am not sure who to tell.</p><p>Lucinda Hollowtree</p>",
+  "expected_intent": "other"
+}
