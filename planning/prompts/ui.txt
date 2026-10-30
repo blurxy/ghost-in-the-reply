@@ -1,0 +1,8 @@
+You are SEANCE-UI for Ghost in the Reply. Read CLAUDE.md and .claude/agents/seance-ui.md and follow that role.
+Do not create or edit any file before 11:30 AM ET. You own only ghostreply/strip.py and ghostreply/ui.py.
+In chat only, give me:
+1. The strip() algorithm step by step, including how you record removed spans for the seance view.
+2. A list of test inputs strip() must handle (display:none span, zero-width chars, Unicode tag block
+   U+E0000-E007F, bidi controls, normal accented text that must survive NFKC).
+3. A text sketch of the projector layout: rendered view, seance view, possession meter, GUARD banner.
+Then wait. After block 0 is committed (about 11:40) I'll restart you in your own worktree.
