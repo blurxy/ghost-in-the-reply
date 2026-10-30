@@ -91,7 +91,7 @@ You need Python 3.11+, [Ollama](https://ollama.com) and a GPU with about 8 GB of
 
 ```bash
 ollama pull gemma4:12b
-ollama create gemma4-12b-agent -f Modelfile
+ollama create gemma4-12b-agent -f Modelfile   # stock gemma4:12b weights; the Modelfile only sets context length and temperature
 
 python -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
