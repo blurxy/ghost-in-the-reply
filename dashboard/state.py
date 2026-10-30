@@ -26,7 +26,7 @@ from .pool import POOL_DIR, POOL_MIN, load_pool, pick, run_paths
 from .steps import STEPS, flow_steps, personalise, practice_ms
 from .viewmodel import badge, inbox_view, message_view, run_view
 
-ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal")
+ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal", "role", "view_mode")
 PREFLIGHT_EVERY_S = 10.0
 STALE_LIVE_AFTER_S = 600.0  # a live result older than this is run again when the title opens (Rafi: 10 minutes)
 REPLAY_FILES = {0: "msg-004-guard0.json", 1: "msg-004-guard1.json"}
@@ -46,6 +46,8 @@ class DashboardState:
         self._pool_dir = Path(pool_dir) if pool_dir else POOL_DIR
         self.random_mode = random_mode
         self.flow = flow  # "staff": the staff inbox steps (default) | "chat": title, patient chat, why, closer
+        self.inside = False  # who is looking at the staff inbox: the Security team (True) or the front desk
+        self.wisp_view = False  # the open message: "What Wisp reads" (True) or the staff view
         self.stage_enabled = False  # set by __main__ with --stage: the presenter shows its stage buttons
         self.variant: dict | None = None
         self.pool: list[dict] = []
@@ -273,7 +275,7 @@ class DashboardState:
                 "backup": bool(self.backup and self.backup.is_file()),
                 "replay_error": self.replay_error, "preflight": list(self._preflight_result),
                 "random": self._random_view(), "practice": self._practice_view(),
-                "flow": self.flow, "stage": bool(self.stage_enabled),
+                "flow": self.flow, "stage": bool(self.stage_enabled), "inside": self.inside, "wisp_view": self.wisp_view,
             }
 
     def views(self, *, force_replay: bool = False) -> dict:
@@ -313,6 +315,15 @@ class DashboardState:
             now = self._clock()
             self.note = None
             last = len(self.steps) - 1
+            if action in ("role", "view_mode"):  # the audience screen's own clicks: same server actions as the presenter's buttons
+                on = {"role": ("security", "inside", True), "view_mode": ("wisp", True)}[action]
+                now_on = (not (self.inside if action == "role" else self.wisp_view)) if arg is None else arg in on
+                if action == "role":
+                    self.inside = now_on
+                else:
+                    self.wisp_view = now_on
+                self.epoch += 1
+                return self.snapshot()
             if self.practice and self.phase != "run" and action in ("reveal", "next", "back", "goto"):
                 self._act_qa(action, arg, now)
             elif action == "rerun" and self.variant is not None:
@@ -326,6 +337,7 @@ class DashboardState:
                 target = max(0, min(last, target))
                 if target != self.step:
                     self.step = target
+                    self.wisp_view = False
                     self._entered_chat_step()
                     self.step_started = now
                     self.epoch += 1

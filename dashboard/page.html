@@ -20,7 +20,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 /* The whole audience view is one staff patient-portal app: top bar, left rail, and the screen's content (#stage). */
 #frame{position:fixed;inset:0;display:grid;grid-template-columns:var(--rail) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}
 #frame.dim .brand,#frame.dim .search,#frame.dim .who,#frame.dim #dock,#frame.dim #rail,#frame.dim #stage{filter:brightness(.32) saturate(.7)}
-#frame .brand,#frame .search,#frame .who,#frame #dock,#frame #rail,#frame #stage{transition:filter .5s}  /* the LIVE/REPLAY badge and the dots are never dimmed */
+#frame .brand,#frame .search,#frame .who,#frame #dock,#frame #rail,#frame #stage{transition:filter .25s}  /* the LIVE/REPLAY badge and the dots are never dimmed */
 #appbar{grid-column:1/-1;display:grid;grid-template-rows:auto auto;background:#0f0f17;border-bottom:2px solid var(--line);font-size:var(--bar)}
 #appbar .row1{display:flex;align-items:center;gap:1.2vw;padding:.9vh 1.4vw;min-width:0}
 .brand{display:flex;align-items:center;gap:.6em;white-space:nowrap;flex:none}
@@ -118,7 +118,7 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:1.6vw;min-height:0}
 .cols.wide{grid-template-columns:1.15fr .85fr}
 .hide{opacity:0;transform:translateY(10px)}
-.in{opacity:1;transform:none;transition:opacity .5s ease,transform .5s ease}
+.in{opacity:1;transform:none;transition:opacity .25s ease,transform .25s ease}
 .dim{color:var(--dim)}
 .ok{color:var(--grn)} .bad{color:var(--red);font-weight:700} .warn{color:var(--amb)}
 .tag{font-family:var(--mono);color:var(--cyn);font-weight:700}
@@ -162,8 +162,9 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .tool{display:inline-flex;align-items:center;gap:.4em;padding:.25em .7em;border:2px solid var(--line);border-radius:10px;color:var(--dim);font-size:.82em;font-weight:600;white-space:nowrap}
 .tool svg{width:1.1em;height:1.1em}
 .seg{display:inline-flex;border:2px solid var(--line);border-radius:999px;overflow:hidden;font-size:.82em;font-weight:700;align-self:flex-start}
-.seg span{padding:.25em 1em;color:var(--dim);transition:background .4s,color .4s}
-.seg span.on{background:var(--mag);color:#000}
+.seg span,.seg button{padding:.25em 1em;color:var(--dim);transition:background .2s,color .2s}
+.seg button{font:inherit;font-weight:inherit;border:0;border-radius:0;background:transparent;cursor:pointer}
+.seg span.on,.seg button.on{background:var(--mag);color:#000}
 .rbody{flex:1;min-height:0;overflow:hidden}
 .composer{border:2px solid var(--mag);border-radius:12px;background:#17121f;padding:1vh 1vw;min-height:0;overflow:hidden}
 .composer .label{color:var(--mag)}
@@ -206,7 +207,7 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .ghost .gt{display:block;background:var(--mag);color:#000;font-weight:700;padding:.1em .5em;box-shadow:0 0 28px 4px rgba(255,61,240,.55)}
 .ghost .gs{display:block;color:#ffb3f8;font-weight:700;margin-top:.2vh}
 .mark{background:var(--mag);color:#000;font-weight:800;padding:0 .3em}
-#ptitle{transition:color .4s}
+#ptitle{transition:color .2s}
 #ptitle.glow{color:var(--mag)}
 .headrow{display:flex;flex-wrap:wrap;align-items:baseline;column-gap:1.4vw;margin-bottom:.2vh}
 .taglabel{color:var(--mag);font-weight:700}
@@ -218,7 +219,7 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .verdictline{margin-top:.6vh;font-weight:800}
 .draft .line{margin:0 0 .5vh;overflow-wrap:anywhere}
 .draft .ell{color:var(--dim)}
-.hl{border-radius:4px;transition:background .5s,color .5s}
+.hl{border-radius:4px;transition:background .25s,color .25s}
 .draft.lit .hl.phone{background:var(--red);color:#fff;font-weight:800}
 .draft.lit .hl.leak{background:var(--amb);color:#000;font-weight:800}
 .jsonbox{font-family:var(--mono);color:var(--grn);white-space:pre-wrap;overflow-wrap:anywhere}
@@ -231,14 +232,14 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .track{display:flex;gap:1vw;width:70%}
 .track i{flex:1;height:1.6vh;min-height:12px;border-radius:6px;background:var(--line)}
 .word{font-size:calc(var(--head)*1.7);font-weight:900;letter-spacing:.05em;line-height:1;opacity:0;transform:scale(3)}
-.meter.in .word{animation:slam .45s cubic-bezier(.2,1.3,.4,1) forwards}
+.meter.in .word{animation:slam .25s cubic-bezier(.2,1.3,.4,1) forwards}
 .lvl-still .word{color:var(--grn)} .lvl-whispering .word{color:var(--amb)} .lvl-possessed .word{color:var(--red)}
 .mcap{font-weight:800}
 
 /* the docked meter: a strip in the headline's place (same grid cell, so nothing moves) and the evidence under the columns */
 .headcell{display:grid;align-items:center;min-width:0}
 .headcell > *{grid-area:1/1;min-width:0}
-.headcell h1{transition:opacity .4s}
+.headcell h1{transition:opacity .2s}
 .headcell h1.gone{opacity:0}
 .mstrip{display:flex;align-items:center;gap:1.6vw}
 .mstrip.hide{transform:none}
@@ -247,7 +248,7 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .mstrip .track{width:auto;flex:0 0 14vw}
 .mstrip .scap{font-weight:800;flex:1;min-width:0}
 .evidence{display:flex;flex-direction:column;gap:.3vh;min-width:0}
-.evidence div{opacity:0;transition:opacity .5s}
+.evidence div{opacity:0;transition:opacity .25s}
 .evidence div.in{opacity:1}
 .evidence .r{color:var(--red);font-weight:700} .evidence .y{color:var(--amb);font-weight:700}
 .reasons{display:flex;flex-direction:column;gap:.4vh;align-items:flex-start;max-width:92%}
@@ -366,7 +367,6 @@ h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;lette
     <div id="p-warn"></div>
   </section>
   <aside id="pr">
-    <div class="timers"><div>step<b id="t-step">0:00</b></div><div>demo<b id="t-demo">0:00</b></div></div>
     <div class="btns">
       <button data-act="back">← Back</button><button data-act="next">Next →</button>
       <button data-act="rerun" id="b-rerun">R Rerun</button><button data-act="toggle_mode" id="b-mode">L Live / Replay</button>
@@ -396,7 +396,8 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 
 let S = null, V = null, offset = 0, timers = [], autoTimer = null, lastWarnKey = "";
 let INSIDE = false, INSTANT = false;  // INSIDE: the Security team is looking; INSTANT: a redraw that skips every animation (the switch keeps the step)
-const at = (ms, fn) => timers.push(setTimeout(fn, FINAL || INSTANT ? 0 : ms));
+// No staged reveals: everything appears at once, except when filming the backup video (?autoplay=1), which keeps its pacing.
+const at = (ms, fn) => timers.push(setTimeout(fn, FINAL || INSTANT || !AUTOPLAY ? 0 : ms));
 const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 const reveal = (node) => node && node.classList.add("in");
 
@@ -411,6 +412,7 @@ async function poll() {
     const viewsChanged = !V || !S || next.views_version !== S.views_version;
     const redraw = !S || next.step !== S.step || next.epoch !== S.epoch || viewsChanged;
     S = next;
+    if (INSIDE !== !!next.inside) { INSIDE = !!next.inside; syncRole(); }  // who is looking lives on the server: both screens follow
     if (viewsChanged) V = await getJSON("/api/views");
     if (redraw) render();
     chrome();
@@ -418,7 +420,7 @@ async function poll() {
 }
 
 async function act(action, arg) {
-  if (AUTOPLAY) return localAct(action);
+  if (AUTOPLAY) return localAct(action, arg);
   try {
     await fetch("/api/action", { method: "POST", headers: { "Content-Type": "application/json" },
                                  body: JSON.stringify({ action, arg }) });
@@ -441,7 +443,12 @@ function scheduleNext() {
   if (S.step >= S.n - 1) return;
   autoTimer = setTimeout(() => localAct("next"), Math.max(STEP_MS, step.min_ms));
 }
-function localAct(action) {
+function localAct(action, arg) {
+  if (action === "role" || action === "view_mode") {  // the static replay has no server: the same two switches, kept here
+    if (action === "role") { S.inside = INSIDE = !INSIDE; syncRole(); } else S.wisp_view = arg === undefined ? !S.wisp_view : arg === "wisp";
+    S.epoch++; render(); chrome();
+    return;
+  }
   const before = S.step;
   if (action === "next") S.step = Math.min(S.n - 1, S.step + 1);
   else if (action === "back") S.step = Math.max(0, S.step - 1);
@@ -910,36 +917,34 @@ const DRAW = {
     stage_h1(stage, step);
     const { reading, m } = inboxPanes(stage, { r2: true });
     if (!m) return;
-    // the reading pane gets a segmented toggle: it flips from what staff see to what the model reads
-    const seg = el("div", "seg");
-    const staffTab = el("span", "on", "Staff view"), wispTab = el("span", null, "What Wisp reads");
+    // the reading pane's toggle: Staff view | What Wisp reads, clickable back and forth (a server action, so both screens follow)
+    const wisp = !!S.wisp_view, seg = el("div", "seg");
+    const staffTab = el("button", wisp ? null : "on", "Staff view"), wispTab = el("button", wisp ? "on" : null, "What Wisp reads");
+    staffTab.type = wispTab.type = "button";
+    staffTab.addEventListener("click", () => act("view_mode", "staff"));
+    wispTab.addEventListener("click", () => act("view_mode", "wisp"));
     seg.append(staffTab, wispTab);
-    const cap = el("span", "taglabel hide", step.caption);
     const bar = el("div", "rmeta");
-    bar.append(seg, cap);
+    bar.append(seg);
+    if (wisp) bar.append(el("span", "taglabel", step.caption));
     const card = el("div", "rbody");
-    card.append(el("div", "body", m.staff.body));
+    if (!wisp) card.append(el("div", "body", m.staff.body));
+    else {
+      const body = el("div", "body");
+      m.seance.forEach((sg) => {
+        if (sg.t === "text") body.append(document.createTextNode(sg.s));
+        else if (sg.t === "break") body.append(document.createTextNode("\n"));
+        else if (sg.t === "mark") body.append(el("span", "mark", "⟨" + sg.s + "⟩"));
+        else {
+          const g = el("div", "ghost");
+          g.append(el("span", "gl", sg.label), el("span", "gt", sg.s));
+          if (sg.signals.length) g.append(el("span", "gs", "→ contains " + sg.signals.join(", ")));
+          body.append(g);
+        }
+      });
+      card.append(body);
+    }
     reading.append(bar, card, replyBar(m));
-    const body = el("div", "body");
-    const ghosts = [];
-    m.seance.forEach((sg) => {
-      if (sg.t === "text") body.append(document.createTextNode(sg.s));
-      else if (sg.t === "break") body.append(document.createTextNode("\n"));
-      else if (sg.t === "mark") { const k = el("span", "mark hide", "⟨" + sg.s + "⟩"); body.append(k); ghosts.push(k); }
-      else {
-        const g = el("div", "ghost hide");
-        g.append(el("span", "gl", sg.label), el("span", "gt", sg.s));
-        if (sg.signals.length) g.append(el("span", "gs", "→ contains " + sg.signals.join(", ")));
-        body.append(g); ghosts.push(g);
-      }
-    });
-    at(1200, () => {  // flip to the model's side: the hidden text is there, and it glows
-      staffTab.classList.remove("on");
-      wispTab.classList.add("on");
-      card.replaceChildren(body);
-      reveal(cap);
-    });
-    ghosts.forEach((g, i) => at(1300 + 900 * i, () => reveal(g)));
   },
 
   possessed(stage, step) {
@@ -1070,8 +1075,6 @@ function presenterRender() {
 function presenterTick() {
   if (!PRESENTER || !S) return;
   const now = (Date.now() + offset) / 1000;
-  $("#t-step").textContent = mmss(now - S.step_started);
-  $("#t-demo").textContent = S.demo_started ? mmss(now - S.demo_started) : "0:00";
   // practice: the bar drains as the step's time (the line at speaking pace) runs out
   const bar = $("#p-bar");
   if (S.practice && S.practice.phase === "run") {
@@ -1255,13 +1258,7 @@ function syncRole() {
   $("#who-av").style.background = INSIDE ? "#00e5ff" : "#9ad1ff";
   $("#view-btn").textContent = INSIDE ? "View as: Front desk" : "View as: Security team";
 }
-function toggleInside() {
-  INSIDE = !INSIDE;
-  syncRole();
-  if (!S) return;
-  INSTANT = true;
-  try { render(); chrome(); } finally { INSTANT = false; }
-}
+function toggleInside() { act("role"); }  // a click or the I key is the server action; the poll draws the answer
 $("#view-btn").addEventListener("click", toggleInside);
 $("#who").addEventListener("click", toggleInside);
 
