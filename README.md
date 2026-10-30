@@ -119,7 +119,16 @@ python -m pytest -q                                     # the test suite; never 
 
 python -m dashboard                 # the demo dashboard: http://127.0.0.1:8765/ (audience) and /presenter
 python -m dashboard --replay-only   # the same dashboard from the recorded runs; never calls the model
+python -m dashboard --random        # a ghost picked at random from the pre-tested variant pool, run live
+python -m dashboard --practice      # hands-free rehearsal from recorded runs, then three judge questions
 ```
+
+**`--random`** answers "is this canned?" on the spot. It picks one of the variants in `runs/pool/` that passed
+pre-testing on the real model: each hides the ghost a different way (a `display:none` span, zero font size, zero
+opacity, an HTML comment), with a different decoy patient and fake phone number. Six of eight passed; the screen
+says the attack was picked from pre-tested variants, and each variant's own saved run is its REPLAY fallback. With
+fewer than three passing variants it falls back to the standard attack and says so. **`--practice`** replays the
+demo at speaking pace with the presenter's lines, then asks three judge questions.
 
 The dashboard is what the live demo runs on. Each result carries a badge: **LIVE** only when the model actually
 produced it just now, and **REPLAY** for a recorded run of the real model. If a live run is slow or fails, the
@@ -141,11 +150,12 @@ Every run is saved to `runs/` as JSON and can be replayed and re-scored without 
 | `ghostreply/tools.py` | The open naive tools and the capability-bound ones, plus the crisis tripwire |
 | `ghostreply/templates.py` | The JSON contract check and the hospital reply templates |
 | `ghostreply/oracles.py` | Leak and phishing oracles and the possession score |
+| `ghostreply/variants.py` | The `--random` pool: eight ghost variants built from parts, validated on the real model |
 | `ghostreply/strip.py` | `strip()`: what the séance view reveals and Warding Circle mode removes |
 | `ghostreply/ui.py` | The terminal views: portal, séance, agent trace, draft, meter |
 | `dashboard/` | The demo dashboard: audience and presenter views, live runs with a replay fallback, honest LIVE/REPLAY badges |
 | `inbox/`, `records/` | Synthetic messages and charts, including the haunted message |
-| `tests/` | The pytest suite (817 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
+| `tests/` | The pytest suite (915 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
 | `planning/` | Plans written before hacking started, and the interface contract |
 
 ## Safety notes and scope
