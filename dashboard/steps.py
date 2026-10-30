@@ -15,8 +15,8 @@ REPO_URL = "github.com/blurxy/ghost-in-the-reply"
 STEPS: list[dict] = [
     {
         "id": "title", "name": "Title", "min_ms": 3000,
-        "say": "Ghost in the Reply.",
-        "headline": "Ghost in the Reply",
+        "say": "Haunted Inbox.",
+        "headline": "Haunted Inbox",
         "sub": "A hidden line in a patient message vs. a hospital's AI assistant",
         "foot": "Gemma 4 12B, running on this laptop",
         # Shown instead of `foot` when every result is a saved run (replay-only, autoplay, the backup video):

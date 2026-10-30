@@ -470,6 +470,21 @@ def test_the_docked_strip_keeps_a_headline_sized_word_in_the_headlines_own_cell(
     assert ".headcell > *{grid-area:1/1" in css and ".headcell h1.gone{opacity:0}" in css  # swapping moves nothing
 
 
+def test_the_project_is_called_haunted_inbox_everywhere_the_dashboard_says_its_name():
+    # Rafi renamed the project on Oct 30 (the organizer reads the name out); wisp, the hospital and the repo URL stay
+    from dashboard import steps
+
+    root = Path(PAGE).parent
+    for path in sorted(root.glob("*.py")) + [Path(PAGE)]:
+        assert "Ghost in the Reply" not in path.read_text(encoding="utf-8"), path.name
+    title = steps.STEPS[0]
+    assert title["headline"] == "Haunted Inbox" and title["say"] == "Haunted Inbox."
+    assert "<title>Haunted Inbox</title>" in Path(PAGE).read_text(encoding="utf-8")
+    assert steps.REPO_URL == "github.com/blurxy/ghost-in-the-reply"  # the repo keeps its name
+    text = " ".join(steps.all_text())
+    assert "Wisp" in text and "Warding Circle" in text
+
+
 def test_the_presenter_column_is_bounded_and_scrolls():
     page = Path(PAGE).read_text(encoding="utf-8")
     css = page.split("</style>")[0]
