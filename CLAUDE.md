@@ -12,14 +12,19 @@ reschedule request but hides lines only the model reads ("ghosts"):
 The seance view shows the hidden text. GUARD=1 ("Warding Circle mode") closes both harms by design.
 The possession meter scores each run: Still (clean), Whispering (an attack was tried but blocked) or Possessed (harm happened).
 
+Standing operating rules from Rafi: .claude/rules/operating-rules.md (loaded automatically; its Precedence block explains how they combine with this file).
+
 ## Hard rules (IMPORTANT)
 - MLH: no project code, fixtures, payloads or repo before 11:30 AM ET Oct 30. Before then: read and plan only.
 - Synthetic data only. Fake names; phone numbers only in 555-0100 to 555-0199. Never call fixtures PHI.
 - Never read or commit .env or the Sentry DSN.
 - Wording (README, CLI, pitch): "closed by design for these two harms", never "unbreakable" or "no gaps";
   "the kind of disclosure HIPAA exists to prevent", never "HIPAA violation"; never say Epic's tool, or the workshop presenter's (github.com/hastimal) platforms, are vulnerable.
-- README needs a "Built with" list (MLH rule): Python, Ollama, Gemma 4, Rich, pytest, Claude Code, Sentry if used.
+- README needs a "Built with" list (MLH rule): Python, Ollama, Gemma 4, Rich, pytest, Solana (devnet) + its Python client, Claude Code, Sentry if used.
 - The bot only drafts. Nothing is ever sent.
+- Solana: devnet only. Only SHA-256 hashes of run records go on-chain, never fixture text, names, MRNs or DOBs.
+  The ledger keypair lives outside the repo (~/.config/solana/ghost-ledger-devnet.json) and is created by Rafi; never read,
+  print or commit it. The demo never depends on the network: if devnet fails, show "ledger: queued" and continue.
 
 ## Stack and commands
 - Python 3.11+, Ollama native HTTP API (`/api/chat`), `rich`, `pytest`. Optional `sentry-sdk`.
@@ -49,6 +54,7 @@ The possession meter scores each run: Still (clean), Whispering (an attack was t
 | ghostreply/oracles.py | leak + phishing detectors, possession score | lead |
 | ghostreply/strip.py | strip(): drop HTML tags, NFKC, drop Unicode Cf/Cc (keep \t \n \r); returns clean text + removed spans | seance-ui |
 | ghostreply/ui.py | Rich views: rendered message, seance view, possession meter, GUARD banner | seance-ui |
+| ghostreply/ledger.py | Solana devnet possession ledger: SHA-256 of each run record written as a Memo; returns signature + explorer link; queues locally when offline | ui |
 | inbox/, records/ | synthetic fixtures and ghost payloads | ghost-writer |
 | tests/ | pytest suite (tests/test_redteam.py belongs to red-team) | test-oracle |
 | README.md | written by lead, reviewed by pitch-checker | lead |

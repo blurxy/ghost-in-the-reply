@@ -89,7 +89,7 @@ Each block ends with something you could show. Blocks marked **(parallel)** run 
 - [ ] **8. 2:50–3:30:** rehearse the 3-minute pitch 5×; make the ghosts blunter until both fire on the naive bot, then freeze the fixtures
 - [ ] **9. 3:30–4:00:** emergency tripwire (crisis language → flagged URGENT for a human, no reply drafted; ~10 min); `pitch-checker` subagent reviews README wording; final backup clip; optional colored stdout trace or Sentry (never in the pitch)
 
-**If you fall behind, cut in this order:** Sentry → visual polish → emergency tripwire → Ghost 1 (only if 1:10 arrives with blocks 1–4 unfinished). Never cut the reveal, Ghost 2 or the guard.
+**If you fall behind, cut in this order:** Sentry → visual polish → emergency tripwire → Solana ledger → Ghost 1 (only if 1:10 arrives with blocks 1–4 unfinished). Never cut the reveal, Ghost 2 or the guard.
 
 **Stretch:** run the same inbox on `gemma4:e4b` too and show both scores side by side: the meter as an index across models.
 

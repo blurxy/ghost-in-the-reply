@@ -1,6 +1,6 @@
 ---
 name: test-oracle
-description: Writes and runs pytest tests for strip(), the oracles, the capability-bound tools and the GUARD=1 renderer, using a FakeModel instead of Ollama. Use proactively after each build block.
+description: Writes and runs pytest tests for strip(), the oracles, the capability-bound tools and the GUARD=1 renderer, using a FakeModel instead of Ollama. Use after blocks 2, 4 and 5 (per planning/DEV-TEAM.md) and whenever the lead asks.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: sonnet
 color: green
