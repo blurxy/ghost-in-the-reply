@@ -87,6 +87,12 @@ def main(argv: list[str] | None = None) -> int:
                                      host=args.ollama_host, cwd=ROOT),
         random_mode=args.random, practice=args.practice,
     )
+    if not replay_only:  # /sandbox runs a stranger's text on the real model: only when there is one
+        from ghostreply.harness import OllamaModel
+
+        from .sandbox import Sandbox
+
+        state.sandbox = Sandbox(lambda: OllamaModel(args.model, args.ollama_host))
     try:
         server = make_server(state, args.host, args.port)
     except OSError as exc:
@@ -109,6 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  audience   http://{shown}:{args.port}/")
     print(f"  presenter  http://{shown}:{args.port}/presenter")
     print(f"  autoplay   http://{shown}:{args.port}/?autoplay=1&step_ms=6000")
+    print(f"  sandbox    http://{shown}:{args.port}/sandbox" + ("   (needs a model: not in --replay-only)" if replay_only else ""))
     if state.replay_error:
         print(f"  WARNING: saved runs not loaded ({state.replay_error})", file=sys.stderr)
     try:
