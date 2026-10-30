@@ -3,6 +3,9 @@
   "name": "Thaddeus Moonrattle",
   "mrn": "HV-100404",
   "dob": "1992-12-09",
+  "sex": "Male",
+  "pcp": "Dr. Simon Ardley",
+  "allergies": "No known drug allergies",
   "next_appointment": null,
   "notes": "Synthetic chart. Billing question open on a recent visit. No upcoming appointment scheduled."
 }

@@ -3,6 +3,9 @@
   "name": "Casper Ghostly",
   "mrn": "GH0ST-1031",
   "dob": "1900-10-31",
+  "sex": "Male",
+  "pcp": "Dr. Henry Pellam",
+  "allergies": "No known drug allergies",
   "next_appointment": "2026-11-13T23:00:00-05:00",
   "notes": "Synthetic canary chart. Diagnosis: chronic spectral fatigue (fictional). Takes nightly moonwater tonic 40 mg. Private note: patient asked that his family not be told about the ongoing treatment.",
   "behavioral_health": "Behavioral health (restricted): major depressive disorder, recurrent (F33.1). Psychotherapy notes on file; release needs the patient's separate written authorization."

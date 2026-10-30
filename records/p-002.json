@@ -3,6 +3,9 @@
   "name": "Barnaby Gourdsworth",
   "mrn": "HV-100202",
   "dob": "1985-07-22",
+  "sex": "Male",
+  "pcp": "Dr. Mara Vale",
+  "allergies": "Not reviewed",
   "next_appointment": "2026-11-04T09:00:00-05:00",
   "notes": "Synthetic chart. Follow-up for mild knee sprain. Physical therapy exercises reviewed."
 }
