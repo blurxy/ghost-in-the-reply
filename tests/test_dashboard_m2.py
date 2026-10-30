@@ -311,6 +311,149 @@ def test_preflight_refreshes_itself_when_it_gets_old():
     assert state.snapshot()["preflight"][0]["state"] == "ok"
 
 
+# --------------------------------------------------------------------------- milestone 2b: the polish
+
+import re  # noqa: E402
+from pathlib import Path  # noqa: E402
+
+from dashboard import viewmodel  # noqa: E402
+from dashboard.server import PAGE  # noqa: E402
+
+
+@pytest.mark.parametrize("iso,expected", [
+    ("2026-10-28T10:20:00-04:00", "Wed, Oct 28 · 10:20 AM"),
+    ("2026-10-27T16:05:00-04:00", "Tue, Oct 27 · 4:05 PM"),
+    ("2026-10-26T00:09:00-04:00", "Mon, Oct 26 · 12:09 AM"),
+    ("2026-10-26T12:00:00-04:00", "Mon, Oct 26 · 12:00 PM"),
+])
+def test_human_dates_read_like_a_portal_and_are_never_iso(iso, expected):
+    assert viewmodel.human_when(iso) == expected
+    assert not re.search(r"\d{4}-\d\d-\d\d|T\d\d:", viewmodel.human_when(iso))
+
+
+@pytest.mark.parametrize("junk", [None, "", "yesterday", 5, "2026-13-45T99:99"])
+def test_an_unreadable_date_is_empty_not_a_crash_or_an_iso_string(junk):
+    assert viewmodel.human_when(junk) == ""
+
+
+def real_inbox_view():
+    state = DashboardState(DEMO)
+    return state.views()
+
+
+def test_the_portal_list_has_the_selected_unread_message_first_then_the_newest():
+    inbox = real_inbox_view()["inbox"]
+    assert [r["id"] for r in inbox] == ["msg-004", "msg-003", "msg-002", "msg-001"]
+    first = inbox[0]
+    assert first["selected"] is True and first["unread"] is True and first["from"] == "Barnaby Gourdsworth"
+    assert all(not r["selected"] and not r["unread"] for r in inbox[1:])
+    assert first["when"] == "Wed, Oct 28 · 10:20 AM"
+    for row in inbox:
+        assert not re.search(r"\d{4}-\d\d-\d\d", row["when"]) and row["subject"] and row["from"]
+
+
+def test_the_crisis_message_never_goes_on_the_portal_list():
+    inbox = real_inbox_view()["inbox"]
+    assert "msg-005" not in [r["id"] for r in inbox]
+    assert not any("know what to do" in r["subject"] for r in inbox)
+
+
+def test_the_opened_message_shows_the_senders_name_and_a_human_date():
+    message = real_inbox_view()["message"]
+    assert message["from"] == "Barnaby Gourdsworth"
+    assert message["received"] == "Wed, Oct 28 · 10:20 AM"
+
+
+def test_the_inbox_view_survives_missing_and_odd_data():
+    assert viewmodel.inbox_view({}, {}, "msg-004") == []
+    assert viewmodel.inbox_view(None, None, None) == []
+    odd = {"msg-9": {"subject": "x", "expected_intent": "billing", "sender_patient_id": "p-9", "received_at": "garbage"}}
+    rows = viewmodel.inbox_view(odd, {}, "msg-4")
+    assert rows[0]["from"] == "p-9" and rows[0]["when"] == "" and rows[0]["selected"] is False
+
+
+def test_the_inbox_is_limited_to_four_rows():
+    many = {f"m{i}": {"subject": f"s{i}", "expected_intent": "billing", "sender_patient_id": "p", "received_at": f"2026-10-2{i}T10:00:00-04:00"}
+            for i in range(1, 9)}
+    assert len(viewmodel.inbox_view(many, {}, "m1")) == 4
+
+
+def test_the_state_serves_the_portal_list_even_when_the_inbox_cannot_be_read(monkeypatch):
+    import dashboard.state as state_module
+
+    def broken():
+        raise OSError("no inbox")
+
+    monkeypatch.setattr(state_module, "load_inbox", broken)
+    views = DashboardState(DEMO).views()
+    assert views["inbox"] == [] or all(r["selected"] for r in views["inbox"])  # the page falls back to one open row
+
+
+def test_the_audience_gets_a_plain_sentence_and_the_presenter_keeps_the_raw_kind():
+    meter = viewmodel.run_view(REPLAYS[1], "replay")["meter"]
+    assert meter["caught"] == "Caught: 1 hidden block of text, removed before the model read it"
+    assert meter["evidence"] == ["hidden text removed: hidden_html x1"]  # raw, for the presenter view only
+    page = Path(PAGE).read_text(encoding="utf-8")
+    audience_js = page.split("function meterOverlay")[1].split("/* ---- the steps ---- */")[0]
+    assert "m.caught" in audience_js and "hidden_html" not in audience_js
+    assert "evidence: " in page.split("function presenterTick")[1]  # the raw evidence is on the presenter view
+
+
+@pytest.mark.parametrize("removed,expected", [
+    ([{"kind": "hidden_html", "text": "<span hidden>x</span>"}], "Caught: 1 hidden block of text, removed before the model read it"),
+    ([{"kind": "hidden_html", "text": "a"}, {"kind": "html_comment", "text": "b"}], "Caught: 2 hidden blocks of text, removed before the model read it"),
+    ([{"kind": "format_char", "text": "​​​"}], "Caught: 3 invisible characters, removed before the model read it"),
+    ([{"kind": "hidden_html", "text": "a"}, {"kind": "format_char", "text": "​"}],
+     "Caught: 1 hidden block of text and 1 invisible character, removed before the model read it"),
+    ([{"kind": "html_tag", "text": "<p>"}], None),
+    ([], None),
+])
+def test_caught_plain_counts_what_the_guard_removed(removed, expected):
+    assert viewmodel.caught_plain({"strip": {"removed": removed}}) == expected
+
+
+@pytest.mark.parametrize("junk", [None, {}, "x", {"strip": 5}, {"strip": {"removed": "no"}}])
+def test_caught_plain_never_raises(junk):
+    assert viewmodel.caught_plain(junk) is None
+
+
+def test_the_trace_and_the_draft_stay_readable_for_three_seconds_before_the_slam():
+    page = Path(PAGE).read_text(encoding="utf-8")
+    hold = int(re.search(r"const HOLD_BEFORE_SLAM_MS = (\d+);", page).group(1))
+    assert hold >= 3000
+    possessed = page.split("possessed(stage, step)")[1].split("whispering(stage, step)")[0]
+    assert "tLit + HOLD_BEFORE_SLAM_MS" in possessed  # the slam is measured from the moment the highlights are on
+
+
+def test_the_title_footer_claims_a_live_laptop_only_while_both_results_are_live():
+    page = Path(PAGE).read_text(encoding="utf-8")
+    title = page.split("title(stage, step)")[1].split("hook(stage, step)")[0]
+    assert '((S.runs[g] || {}).badge || {}).source === "live"' in title and "step.foot_replay" in title
+    assert "!AUTOPLAY" in title and "!S.replay_only" in title
+
+
+def test_the_audience_never_sees_raw_evidence_or_file_names_on_the_stage():
+    page = Path(PAGE).read_text(encoding="utf-8")
+    assert '"Caught: " + t' not in page            # no raw kind behind a friendly prefix
+    assert 'V.replay_error)' not in page.split("function presenterTick")[0].split("function drawStep")[1]  # not on the stage
+    assert "Saved runs not loaded: " in page.split("function presenterTick")[1]  # the detail is on the presenter view
+
+
+def test_the_step_copy_uses_plain_words_for_the_audience():
+    from dashboard import steps
+
+    text = " ".join(steps.all_text())
+    assert "JSON" not in text and "hidden_html" not in text and "format_char" not in text
+    assert "fills in a small form" in text
+
+
+def test_the_presenter_column_is_bounded_and_scrolls():
+    page = Path(PAGE).read_text(encoding="utf-8")
+    css = page.split("</style>")[0]
+    assert re.search(r"#pr\{[^}]*overflow-y:auto", css) and re.search(r"#pr\{[^}]*min-height:0", css)
+    assert "grid-template-rows:minmax(0,1fr)" in css
+
+
 # ------------------------------------------------------------------------ the port guard, the flags
 
 def test_main_refuses_a_port_that_is_taken_and_says_what_to_try(capsys):

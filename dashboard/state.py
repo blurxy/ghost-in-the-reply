@@ -11,11 +11,11 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from ghostreply.harness import load_run
+from ghostreply.harness import load_inbox, load_patients, load_run
 
 from .live import Choice, LiveRunner, resolve
 from .steps import STEPS
-from .viewmodel import badge, message_view, run_view
+from .viewmodel import badge, inbox_view, message_view, run_view
 
 ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode")
 PREFLIGHT_EVERY_S = 10.0
@@ -25,7 +25,7 @@ REPLAY_FILES = {0: "msg-004-guard0.json", 1: "msg-004-guard1.json"}
 class DashboardState:
     def __init__(self, replay_dir: Path | str, *, live: LiveRunner | None = None, mode: str = "live",
                  clock: Callable[[], float] = time.time, preflight: Callable[[], list[dict]] | None = None,
-                 backup: Path | str | None = None) -> None:
+                 backup: Path | str | None = None, inbox: dict | None = None, patients: dict | None = None) -> None:
         self._lock = threading.RLock()
         self._clock = clock
         self.live = live
@@ -43,6 +43,11 @@ class DashboardState:
                 self.replay[guard] = load_run(Path(replay_dir) / name)
             except Exception as exc:
                 self.replay_error = f"{name}: {type(exc).__name__}"
+        try:  # read-only: the other messages on the portal screen, and the (synthetic) names of the senders
+            self._inbox = load_inbox() if inbox is None else inbox
+            self._patients = load_patients() if patients is None else patients
+        except Exception:
+            self._inbox, self._patients = {}, {}
         self._preflight = preflight
         self._preflight_result: list[dict] = []
         self._preflight_at = 0.0
@@ -125,8 +130,11 @@ class DashboardState:
                 if run is not None:
                     runs[str(guard)] = run_view(run, choice.source)
             first = self.replay.get(0) or self.replay.get(1) or {}
-            message = message_view(first.get("message"), first.get("strip")) if first else None
-            return {"message": message, "runs": runs, "replay_error": self.replay_error}
+            shown = first.get("message") if isinstance(first.get("message"), dict) else {}
+            name = (self._patients.get(shown.get("sender_patient_id")) or {}).get("name") if isinstance(self._patients, dict) else None
+            message = message_view(shown, first.get("strip"), sender_name=name) if first else None
+            return {"message": message, "inbox": inbox_view(self._inbox, self._patients, shown.get("id")) if first else [],
+                    "runs": runs, "replay_error": self.replay_error}
 
     def act(self, action: str, arg: object = None) -> dict:
         """Apply a key or button. Unknown actions are ignored. Returns the new snapshot."""
