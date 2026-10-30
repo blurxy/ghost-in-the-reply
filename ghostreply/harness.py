@@ -200,10 +200,36 @@ def _new_run(message: dict, guard: bool, model: Model, hospital: dict) -> dict:
     }
 
 
+THINKING_NOTE = "off (think: false, for speed)"
+
+
+def _emitter(on_event, started: float):
+    """A safe progress callback: stamps each event with seconds since the run began; a failing listener never
+    breaks the run. The events carry the same data as the run log, as it happens, for the live activity panel."""
+    def emit(kind: str, **data) -> None:
+        if on_event is None:
+            return
+        try:
+            on_event({"t": round(time.monotonic() - started, 1), "kind": kind, **data})
+        except Exception:
+            pass
+    return emit
+
+
+def _fields_returned(result: str) -> list[str]:
+    try:
+        data = json.loads(result)
+    except (TypeError, ValueError):
+        return []
+    return list(data) if isinstance(data, dict) else []
+
+
 def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = None,
                 patients: dict | None = None, hospital: dict | None = None, system: str | None = None,
-                prompt=None) -> dict:
-    """Run one inbox message through Wisp and return its run log. Never raises for model failures."""
+                prompt=None, on_event=None) -> dict:
+    """Run one inbox message through Wisp and return its run log. Never raises for model failures.
+
+    on_event, if given, is called with each step as it happens (see _emitter); it changes nothing else."""
     inbox = load_inbox() if inbox is None else inbox
     patients = load_patients() if patients is None else patients
     hospital = load_hospital() if hospital is None else hospital
@@ -224,11 +250,13 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
         run["strip"] = None
         run["strip_error"] = type(e).__name__
     started = time.monotonic()
+    emit = _emitter(on_event, started)
+    emit("run_start", guard=int(guard), model=run["model"].get("name"), thinking=THINKING_NOTE)
     try:
         if guard:
-            run_guarded(ctx, model, run)
+            run_guarded(ctx, model, run, emit=emit)
         else:
-            run_naive(ctx, model, run, system=system, prompt=prompt)
+            run_naive(ctx, model, run, system=system, prompt=prompt, emit=emit)
     except (ModelError, GuardUnavailable) as e:
         run["status"] = "error"
         run["error"] = str(e)
@@ -238,6 +266,7 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
     if run["status"] != "error" and run["status"] not in ("held", "urgent"):
         run["status"] = "drafted" if ctx.draft else "no_draft"
     run["verdict"] = score(run)
+    emit("run_done", status=run["status"], level=run["verdict"]["level"], duration_ms=run["duration_ms"])
     return run
 
 
@@ -252,7 +281,8 @@ def _naive_prompt(message: dict) -> str:
     )
 
 
-def run_naive(ctx: ToolContext, model: Model, run: dict, *, system: str | None = None, prompt=None) -> None:
+def run_naive(ctx: ToolContext, model: Model, run: dict, *, system: str | None = None, prompt=None,
+              emit=lambda kind, **data: None) -> None:
     """GUARD=0: a plain tool loop over the raw message. Ends at draft_reply, at the call budget, or when the model
     stops calling tools after one correction."""
     messages: list[dict] = [
@@ -262,11 +292,15 @@ def run_naive(ctx: ToolContext, model: Model, run: dict, *, system: str | None =
     run["transcript"] = messages
     calls = 0
     retried = False
-    for _ in range(MAX_TURNS):
+    for turn in range(1, MAX_TURNS + 1):
+        emit("model_start", turn=turn)
         reply = model.chat(messages, tools=NAIVE_TOOLS)
         tool_calls = reply.get("tool_calls") or []
         run["turns"].append({**getattr(model, "last_stats", {}),
                              "response": {"content": reply.get("content", ""), "tool_calls": tool_calls}})
+        stats = run["turns"][-1]
+        emit("model_done", turn=turn, ms=stats.get("ms"), eval_count=stats.get("eval_count"),
+             tokens_per_s=stats.get("tokens_per_s"), response=stats["response"])
         assistant = {"role": "assistant", "content": reply.get("content", "")}
         if tool_calls:
             assistant["tool_calls"] = tool_calls
@@ -282,14 +316,20 @@ def run_naive(ctx: ToolContext, model: Model, run: dict, *, system: str | None =
                 return
             function = call.get("function") or {}
             name = str(function.get("name", ""))
+            emit("tool_call", tool=name, args=function.get("arguments", {}))
             result = dispatch(ctx, name, function.get("arguments", {}))
+            event = ctx.events[-1] if ctx.events else {}
+            touched = list(event.get("patients_touched") or [])
+            emit("tool_result", tool=name, allowed=bool(event.get("allowed")), patients=touched,
+                 sender=ctx.sender_id, sender_only=all(p == ctx.sender_id for p in touched),
+                 fields=_fields_returned(result), note=event.get("note"), preview=str(result)[:300])
             messages.append({"role": "tool", "tool_name": name, "content": result})
             calls += 1
         if ctx.draft is not None or calls >= MAX_TOOL_CALLS:
             return
 
 
-def run_guarded(ctx: ToolContext, model: Model, run: dict) -> None:
+def run_guarded(ctx: ToolContext, model: Model, run: dict, *, emit=lambda kind, **data: None) -> None:
     """GUARD=1, Warding Circle mode. Code, not the model, decides what is read, who is looked up and what is written:
 
     strip() the subject and body -> crisis tripwire (URGENT, no model call, no draft) -> one format= call with no
@@ -298,10 +338,16 @@ def run_guarded(ctx: ToolContext, model: Model, run: dict) -> None:
     """
     message = ctx.inbox[ctx.message_id]
     seen = read_current_message(ctx)  # raises GuardUnavailable without strip.py: fail closed
+    kinds: dict[str, int] = {}
+    for span in list(seen["body_removed"]) + list(seen["subject_removed"]):
+        if span.get("kind") != "html_tag":
+            kinds[span["kind"]] = kinds.get(span["kind"], 0) + 1
+    emit("strip", removed_hidden=sum(kinds.values()), kinds=kinds)
     signal = crisis_signal(seen["subject"], seen["body"])
     if signal:
         run["status"] = "urgent"
         run["urgent"] = signal
+        emit("urgent", phrase=signal)
         ctx.log("tripwire", {}, note="urgent: crisis language, flagged for a human, nothing drafted")
         return
     received_at = datetime.fromisoformat(message["received_at"])
@@ -310,19 +356,27 @@ def run_guarded(ctx: ToolContext, model: Model, run: dict) -> None:
         {"role": "user", "content": f"Received: {message['received_at']}\nSubject: {seen['subject']}\n\n{seen['body']}"},
     ]
     run["transcript"] = messages
+    emit("model_start", turn=1)
     reply = model.chat(messages, format=INTENT_SCHEMA)
     content = reply.get("content", "")
     run["turns"].append({**getattr(model, "last_stats", {}),
                          "response": {"content": content, "tool_calls": reply.get("tool_calls") or []}})
+    stats = run["turns"][-1]
+    emit("model_done", turn=1, ms=stats.get("ms"), eval_count=stats.get("eval_count"),
+         tokens_per_s=stats.get("tokens_per_s"), response=stats["response"])
+    emit("model_json", content=content)
     intent, held = parse_intent(content, received_at)
     if held:
         run["status"] = "held"
         run["held_reason"] = held
+        emit("held", reason=held)
         deny(ctx, "draft_reply", {"reason": held, "model_reply": str(content or "")[:500]})
         return
     run["intent"] = intent
     sender = lookup_sender(ctx)
+    emit("lookup_sender", patient=ctx.sender_id)
     text = render_reply(intent, sender, ctx.hospital)
+    emit("template", intent=intent["intent"], to=ctx.sender_id)
     ctx.draft = {"to": ctx.sender_id, "text": text}
     ctx.log("draft_reply", {"to": ctx.sender_id, "text": text, "template": intent["intent"]}, patients=[ctx.sender_id])
 
