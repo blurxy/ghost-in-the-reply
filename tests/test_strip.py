@@ -90,6 +90,26 @@ CASES = [
     ("plain_ampersands", "Tom &amp; Jerry, AT&amp;T", "Tom & Jerry, AT&T", []),
     ("order_nfkc_last", "Jose​́", "José", {"format_char"}),
     ("empty", "", "", []),
+    # elements a browser does not render (review round 1), each hidden whole with its text
+    ("dialog", "a<dialog>ghost</dialog>b", "ab", ["hidden_html"]),
+    ("canvas_fallback", "a<canvas>ghost</canvas>b", "ab", ["hidden_html"]),
+    ("video_fallback", "a<video>ghost</video>b", "ab", ["hidden_html"]),
+    ("audio_fallback", "a<audio>ghost</audio>b", "ab", ["hidden_html"]),
+    ("object_fallback", "a<object>ghost</object>b", "ab", ["hidden_html"]),
+    ("svg_desc", "a<svg><desc>ghost</desc></svg>b", "ab", ["html_tag", "hidden_html", "html_tag"]),
+    ("svg_metadata_defs", "a<metadata>g1</metadata><defs>g2</defs>b", "ab", ["hidden_html", "hidden_html"]),
+    ("svg_clippath_camelcase", "a<clipPath>ghost</clipPath>b", "ab", ["hidden_html"]),
+    # a font-size or opacity too small to see counts as hidden; ordinary values do not
+    ("font_size_tiny_px", 'a<span style="font-size:0.1px">ghost</span>b', "ab", ["hidden_html"]),
+    ("font_size_tiny_em", 'a<span style="font-size:.05em">ghost</span>b', "ab", ["hidden_html"]),
+    ("font_size_tiny_percent", 'a<span style="font-size:5%">ghost</span>b', "ab", ["hidden_html"]),
+    ("font_size_one_px_is_visible", 'a<span style="font-size:1px">x</span>b', "axb", None),
+    ("font_size_normal", 'a<span style="font-size:12px">x</span>b', "axb", None),
+    ("font_size_one_em", 'a<span style="font-size:1em">x</span>b', "axb", None),
+    ("font_size_negative_is_invalid_css", 'a<span style="font-size:-3px">x</span>b', "axb", None),
+    ("opacity_near_zero", 'a<span style="opacity:0.001">ghost</span>b', "ab", ["hidden_html"]),
+    ("opacity_one_percent", 'a<span style="opacity:1%">ghost</span>b', "ab", ["hidden_html"]),
+    ("opacity_half_is_visible", 'a<span style="opacity:.5">x</span>b', "axb", None),
 ]
 
 
@@ -194,6 +214,39 @@ def test_fewer_levels_of_escaping_resolve_without_unstable_markup():
     clean, removed = strip("&lt;span hidden&gt;ghost&lt;/span&gt;ok")
     assert clean == "ok"
     assert not any(s["kind"] == "unstable_markup" for s in removed)
+
+
+# Documented limits, pinned so they cannot change silently and the docstring and README stay honest.
+
+def test_limit_a_class_hidden_by_a_stylesheet_rule_reaches_the_model():
+    clean, removed = strip('<style>.g{display:none}</style><span class="g">ghost</span>')
+    assert clean == "ghost"  # strip() does not apply stylesheets
+    assert [s["kind"] for s in removed if s["kind"] in HIDDEN_KINDS] == ["hidden_html"]  # the <style> block is recorded
+
+
+@pytest.mark.parametrize("css", ["color:transparent", "position:absolute;left:-9999px", "height:0;overflow:hidden",
+                                 "color:#fff;background:#fff"])
+def test_limit_other_ways_to_hide_text_are_not_detected(css):
+    clean, removed = strip(f'a<span style="{css}">ghost</span>b')
+    assert clean == "aghostb" and not any(s["kind"] in HIDDEN_KINDS for s in removed)
+
+
+def test_a_lt_that_no_tag_can_start_from_is_kept_and_stable():
+    text = '<́span style="display:none">ghost</span>'  # a browser shows this as text, not as a tag
+    clean, removed = strip(text)
+    assert clean.startswith("<́span") and "ghost" in clean
+    assert strip(clean) == (clean, [])
+    check_invariants(text, clean, removed)
+
+
+def test_describe_names_the_rule_that_hid_the_element():
+    cases = {'<span style="display:none">x</span>': "display:none", '<b hidden>x</b>': "hidden attribute",
+             '<i style="font-size:0">x</i>': "font-size:0", '<i style="font-size:0.1px">x</i>': "tiny font-size",
+             '<i style="opacity:0">x</i>': "opacity:0", '<i style="opacity:0.001">x</i>': "near-zero opacity",
+             "<dialog>x</dialog>": "<dialog> element"}
+    for html_text, reason in cases.items():
+        (span,) = strip("a" + html_text + "b")[1]
+        assert reason in describe(span)[0], (html_text, describe(span))
 
 
 def test_clean_message_has_no_hidden_kind():
