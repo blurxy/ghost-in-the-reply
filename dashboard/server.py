@@ -7,6 +7,8 @@
     POST /api/action     {"action": "next"|"back"|"goto"|"rerun"|"toggle_mode", "arg": ...}
     GET  /sandbox        try your own ghost (a model is needed: not in --replay-only)
     GET  /api/sandbox/info   POST /api/sandbox/run {"visible", "hidden", "trick"}
+    GET  /chat           the patient portal: Barnaby chats with Wisp (dashboard/chatportal.py)
+    GET  /api/chat/state[?full=0]   POST /api/chat/send {"preset"} | {"text"}   POST /api/chat/act {"action": "view"|"guard"|"reset"}
 """
 
 from __future__ import annotations
@@ -22,7 +24,9 @@ from .state import ACTIONS, DashboardState
 
 PAGE = Path(__file__).with_name("page.html")
 SANDBOX_PAGE = Path(__file__).with_name("sandbox.html")
+CHAT_PAGE = Path(__file__).with_name("chat.html")
 MAX_BODY = 4096
+CHAT_MAX_BODY = 64 * 1024  # 2,000 characters even at four bytes each, with room to spare
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -62,6 +66,12 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/sandbox/info":
                 sandbox = self.state.sandbox
                 self._json(sandbox.info() if sandbox is not None else {"available": False, "reason": NEEDS_MODEL})
+            elif path == "/chat":
+                self._send(200, CHAT_PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/api/chat/state":
+                chat = self.state.chat
+                full = "full=0" not in (self.path.split("?", 1) + [""])[1].split("&")
+                self._json(chat.snapshot(full=full) if chat is not None else {"available": False, "reason": "no chat"})
             elif path == "/backup.mp4" and self.state.backup and self.state.backup.is_file():
                 self._send(200, self.state.backup.read_bytes(), "video/mp4")
             else:
@@ -88,6 +98,24 @@ class Handler(BaseHTTPRequestHandler):
         code, payload = sandbox.run(body)
         self._json(payload, code)
 
+    def _chat(self, route: str) -> None:
+        """POST /api/chat/send {"preset": name} | {"text": str}, POST /api/chat/act {"action": name}. Names and one capped
+        text only; the chat session validates both and answers 202 at once (the page polls /api/chat/state)."""
+        chat = self.state.chat
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            if not 0 < length <= CHAT_MAX_BODY:
+                raise ValueError("body size")
+            body = json.loads(self.rfile.read(length))
+        except (ValueError, json.JSONDecodeError):
+            self._json({"error": "bad request"}, 400)
+            return
+        if chat is None:
+            self._json({"error": "no chat"}, 503)
+            return
+        code, payload = chat.send(body) if route == "/api/chat/send" else chat.act(body.get("action") if isinstance(body, dict) else None)
+        self._json(payload, code)
+
     def do_POST(self) -> None:
         route = self.path.split("?", 1)[0]
         if route == "/api/sandbox/run":
@@ -96,6 +124,14 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
             except Exception as exc:  # whatever the sandbox hits, the demo server keeps serving
+                self._json({"error": type(exc).__name__}, 500)
+            return
+        if route in ("/api/chat/send", "/api/chat/act"):
+            try:
+                self._chat(route)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except Exception as exc:  # whatever the chat hits, the demo server keeps serving
                 self._json({"error": type(exc).__name__}, 500)
             return
         if route == "/api/stage":  # only with --stage; see dashboard/stage.py for the allowlist and its rules
