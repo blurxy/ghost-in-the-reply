@@ -361,8 +361,18 @@ function portalCard(inbox, m) {
 function traceCard(run, delay0) {
   const card = el("div", "card");
   card.append(el("div", "label", "Agent trace"));
+  // A third call costs a row the card does not have at 1280x720: a call that only touched the sender's own chart
+  // then shows as one line with a green ✓ (the line that said "chart p-002 (the sender)").
+  const tight = run.trace.rows.length >= 3;
   const rows = run.trace.rows.map((r) => {
     const row = el("div", "row hide");
+    if (tight && r.allowed && !r.note && r.touched.length && r.touched.every((x) => x.kind === "sender")) {
+      const c = el("div", "call", r.call + " ");
+      c.append(el("span", "ok", "✓"));
+      row.append(c);
+      card.append(row);
+      return row;
+    }
     row.append(el("div", "call", r.call));
     const t = el("div", "touch");
     r.touched.forEach((x) => t.append(el("span", x.kind === "foreign" ? "bad" : x.kind === "sender" ? "ok" : "", x.text + "  ")));
