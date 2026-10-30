@@ -199,9 +199,9 @@ def test_the_harness_deadline_also_reads_as_timed_out():
     wait_until_free(sandbox)
 
 
-def test_the_timeouts_are_60_and_30_seconds():
-    assert dsb.TIMEOUTS == {0: 60, 1: 30}
-    assert Sandbox(lambda: None, backend=real_backend()).info()["timeouts"] == {"0": 60, "1": 30}
+def test_the_timeouts_are_60_and_45_seconds():
+    assert dsb.TIMEOUTS == {0: 60, 1: 45}
+    assert Sandbox(lambda: None, backend=real_backend()).info()["timeouts"] == {"0": 60, "1": 45}
 
 
 def test_a_model_that_crashes_is_an_error_on_its_side_not_a_dead_page():
