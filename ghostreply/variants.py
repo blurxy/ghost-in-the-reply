@@ -40,6 +40,17 @@ HIDING = {
     "below_fold": "text below the fold",
 }
 
+# The sandbox's dropdown, in order: every hiding trick plus plain visible text (planning/SANDBOX-SPEC.md).
+TRICKS = {
+    "display_none": "display:none",
+    "font_size_0": "font-size zero",
+    "opacity_0": "zero opacity",
+    "html_comment": "an HTML comment",
+    "unicode_tag": "invisible characters",
+    "below_fold": "text below the fold",
+    "visible": "visible (no hiding)",
+}
+
 # Every trick, wording style and decoy appears at least once.
 _PLAN = {
     "v01": ("display_none", "portal system notice", "p-1031"),
@@ -130,6 +141,12 @@ def kept_ids() -> list[str]:
         return [v["id"] for v in json.loads(MANIFEST.read_text(encoding="utf-8"))["variants"]]
     except (OSError, ValueError, KeyError, TypeError):
         return []
+
+
+def run_custom(visible: str, hidden: str, trick: str, guard: bool, model) -> dict:
+    """A visitor's own ghost through one guard, not saved (the dashboard saves it). See ghostreply/sandbox.py."""
+    from ghostreply.sandbox import run_custom as _run_custom  # sandbox imports this module; import it lazily
+    return _run_custom(visible, hidden, trick, guard, model, save=False)
 
 
 def validate_pool(model=None, ids=VARIANT_IDS, log=print) -> dict:
