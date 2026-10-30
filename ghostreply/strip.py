@@ -79,6 +79,24 @@ _TINY_FONT = {"px": 1.0, "pt": 0.75, "em": 0.1, "rem": 0.1, "ex": 0.1, "ch": 0.1
 _MERGE_KINDS = frozenset(KINDS) - {"hidden_html", "html_comment"}
 
 
+def _decode_ref(ref: str) -> str:
+    """html.unescape for ONE reference. A numeric one with thousands of digits is past Python's 4300-digit
+    int-conversion limit, so html.unescape raises ValueError; it is out of range anyway, so it decodes to U+FFFD,
+    as a browser treats it. strip() must be total: a hostile message may not be able to crash it."""
+    try:
+        return html.unescape(ref)
+    except ValueError:
+        return "�" if ref.startswith("&#") else ref
+
+
+def safe_unescape(text: str) -> str:
+    """html.unescape that cannot raise (see _decode_ref). Every place this package decodes text uses it."""
+    try:
+        return html.unescape(text)
+    except ValueError:
+        return _CHARREF.sub(lambda m: _decode_ref(m.group(0)), text)
+
+
 # --------------------------------------------------------------------------------------------- characters
 
 def char_kind(c: str) -> str | None:
@@ -253,7 +271,7 @@ def _hidden_reason(name: str, attrs: dict[str, str]) -> str | None:
         return f"<{name}> element"
     if "hidden" in attrs:
         return "hidden attribute"
-    for prop, value in _css_declarations(html.unescape(attrs.get("style", ""))):
+    for prop, value in _css_declarations(safe_unescape(attrs.get("style", ""))):
         if prop == "display" and value == "none":
             return "display:none"
         if prop == "visibility" and value in ("hidden", "collapse"):
@@ -384,7 +402,7 @@ def _unescape(text: str, origin: Origin, removed: list[dict]) -> tuple[str, Orig
     pos = 0
     for m in _CHARREF.finditer(text):
         a, b = m.span()
-        decoded = html.unescape(m.group(0))
+        decoded = _decode_ref(m.group(0))
         if decoded == m.group(0):
             continue
         out.append(text[pos:a])
@@ -548,7 +566,7 @@ def _reveal_chars(text: str) -> str:
 
 
 def _tidy(text: str) -> str:
-    return " ".join(_reveal_chars(html.unescape(text)).split())
+    return " ".join(_reveal_chars(safe_unescape(text)).split())
 
 
 def describe(span: dict) -> tuple[str, str]:
