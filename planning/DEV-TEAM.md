@@ -52,12 +52,6 @@ Open three Claude Code sessions in this folder, all in plan mode, named **lead**
 
 Optional second session for UI instead of the subagent: open a new terminal and run `claude -w seance`, then give it the seance-ui prompt. It works in its own worktree under `.claude/worktrees/`. Merge with `git merge worktree-seance` when it's done.
 
-**Solana lane (ui session, right after block 3, about 12:40-1:25, in parallel with blocks 4-5).**
-
-> Build ghostreply/ledger.py per CLAUDE.md: hash each run record (guard, model, message id, verdict, oracle hits, timestamp) with SHA-256 and write the hash as a Memo on Solana devnet with the keypair at ~/.config/solana/ghost-ledger-devnet.json. Return the signature and explorer link. If devnet or the airdrop fails, append to runs/ledger-queue.jsonl and return 'queued'. Confirm the current client library and Memo program from official Solana docs first. Tests use a fake client; one live devnet write as evidence. Never put fixture text on-chain.
-
-The lead wires ledger.py into the run log in block 7, and the Agent trace panel shows the explorer link.
-
 **Block 4, 12:40.**
 
 > Build GUARD=1 exactly as CLAUDE.md's "Capability-bound bot" section says. Then use test-oracle with a FakeModel that obeys every ghost: GUARD=0 must score Possessed; GUARD=1 must score Whispering on the haunted message (attack caught, no harm) and Still on clean ones. Show the pytest output, then commit.

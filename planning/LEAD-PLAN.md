@@ -216,5 +216,4 @@ running if the ui ever breaks during the demo.
 }
 ```
 
-`--replay` loads a run, re-runs `score()` on it and renders it. It never calls the model. In block 7 the ledger
-(ui's ledger.py) hashes the run record, and the harness stores the signature and explorer link on the run.
+`--replay` loads a run, re-runs `score()` on it and renders it. It never calls the model.
