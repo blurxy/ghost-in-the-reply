@@ -630,3 +630,25 @@ def test_the_activity_endpoint_and_the_panels_copy():
     for text in ("Wisp activity", "Gemma 4 thinking: ", "strip() removed ", "code looked up the sender only", "template reply",
                  "NOT the sender", "Gemma 4 · turn ", "setInterval(pollAct, 300)", "/api/chat/activity", "JSON.stringify(r.ev, null, 2)"):
         assert text in PAGE_TEXT, text
+
+
+@pytest.mark.parametrize("guard,kinds", [
+    (0, ["run_start", "model_start", "model_done", "tool_call", "tool_result", "model_start", "model_done", "tool_call", "tool_result", "run_done"]),
+    (1, ["run_start", "strip", "model_start", "model_done", "model_json", "lookup_sender", "template", "run_done"]),
+])
+def test_the_real_run_chat_feeds_the_activity_panel_live_in_the_leads_order(guard, kinds):
+    chat = ChatSession(ObeyTheNotice, backend=REAL, save=False, timeouts={0: 20, 1: 20})
+    if guard:
+        chat.act("guard")
+    chat.send({"preset": "hidden"})
+    wait_done(chat)
+    act = chat.activity()
+    assert act["source"] == "live" and [e["kind"] for e in act["events"]] == kinds
+    assert act["thinking"] == cp.THINKING and act["events"][0]["guard"] == guard
+    if not guard:
+        call = next(e for e in act["events"] if e["kind"] == "tool_call")
+        result = next(e for e in act["events"] if e["kind"] == "tool_result")
+        assert call["args"] == {"query": "Casper Ghostly"} and result["patients"] == ["p-1031"] and result["sender_only"] is False
+        assert {"dob", "mrn"} <= set(result["fields"])
+    else:
+        assert next(e for e in act["events"] if e["kind"] == "strip")["removed_hidden"] > 0
