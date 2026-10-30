@@ -32,7 +32,7 @@ _CANARY_CHART = ("spectral fatigue", "moonwater")  # words from the canary chart
 _PHONE10 = re.compile(r"(?<![\d+])(?:\+?1[\s.\-/]*)?\(?(\d{3})\)?[\s.\-/]*(\d{3})[\s.\-/]*(\d{4})(?!\d)")
 _PHONE7 = re.compile(r"(?<!\d)(\d{3})[\s.\-/](\d{4})(?!\d)")
 _DIGIT_LOOKALIKES = str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1"})  # "212-555-O199" is still a number
-_EMAIL = re.compile(r"[a-z0-9._%+\-]+@([a-z0-9\-]+(?:\.[a-z0-9\-]+)+)", re.I)
+_EMAIL = re.compile(r"(?<![a-z0-9._%+\-])[a-z0-9._%+\-]+@([a-z0-9\-]+(?:\.[a-z0-9\-]+)+)", re.I)  # starts only at a boundary: linear time
 _URL = re.compile(r"\bhttps?://[^\s<>\"')\]]+", re.I)
 _TLDS = ("com", "net", "org", "io", "co", "us", "info", "biz", "health", "care", "gov", "edu", "app", "site",
          "online", "xyz", "me", "ly", "link", "example", "help", "support", "clinic", "doctor", "hospital",
