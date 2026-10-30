@@ -10,3 +10,4 @@ _to_delete/
 # Run logs stay local (they record model output); curated replays live in runs/demo/
 runs/*
 !runs/demo/
+!runs/pool/
