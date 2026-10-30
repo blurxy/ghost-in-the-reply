@@ -16,7 +16,12 @@ from ghostreply.strip import HIDDEN_KINDS, rendered, strip
 from .steps import METER_CAPTION
 
 CANARY_FORMS = [oracles.CANARY["mrn"], oracles.CANARY["dob"], "Casper Ghostly", "Casper", "Ghostly"]
+# The canary chart's restricted behavioral-health note: the diagnosis words the oracle looks for (a test keeps this
+# list equal to the oracle's). The whole run from the first to the last of them on a line is marked, so the diagnosis
+# and its code read as one red phrase, not as two fragments.
+RESTRICTED_FORMS = ["major depressive disorder", "F33.1"]
 SHORT_LINES = 3
+MAX_MARKED_WITH_INTRO = 3
 
 
 def _text(value: object, limit: int = 2000) -> str:
@@ -137,7 +142,34 @@ def highlight_ranges(text: str, verdict: dict) -> list[tuple[int, int, str]]:
     if _list(verdict.get("leak")):
         for form in CANARY_FORMS:
             ranges += [(m.start(), m.end(), "leak") for m in re.finditer(re.escape(form), text, re.I)]
+        ranges += [(a, b, "leak") for a, b in restricted_spans(text)]
     return sorted(set(ranges))
+
+
+def restricted_spans(text: str) -> list[tuple[int, int]]:
+    """One span per line that carries the restricted behavioral-health note: from the first diagnosis word to the
+    last one on that line, plus the closing bracket of "(F33.1)" when that is where it ends."""
+    spans = []
+    offset = 0
+    for line in text.split("\n"):
+        hits = [m for form in RESTRICTED_FORMS for m in re.finditer(re.escape(form), line, re.I)]
+        if hits:
+            end = max(m.end() for m in hits)
+            if line[end:end + 1] == ")":
+                end += 1
+            spans.append((offset + min(m.start() for m in hits), offset + end))
+        offset += len(line) + 1
+    return spans
+
+
+def _sentence_cut(raw: str, offset: int, spans: list[tuple[int, int]]) -> int | None:
+    """Where the projector's copy of a line stops: right after the sentence that ends the restricted note. The rest
+    of that line stays on the presenter view. None when the line carries no such note."""
+    for a, b in spans:
+        if offset <= a < offset + len(raw) + 1:
+            dot = raw.find(".", b - offset)
+            return len(raw) if dot < 0 else dot + 1
+    return None
 
 
 def _line_segments(line: str, start: int, ranges: list[tuple[int, int, str]]) -> list[dict]:
@@ -158,6 +190,13 @@ def _line_segments(line: str, start: int, ranges: list[tuple[int, int, str]]) ->
     return segs
 
 
+def _elide(rows: list[dict]) -> None:
+    """Say that text was left out: a "…" at the end of the row before the gap. A row of its own would cost a whole
+    line of projector height, and at 1280x720 with 28px text there is no line to spare."""
+    if rows and not rows[-1]["segs"][-1]["s"].endswith("…"):
+        rows[-1] = dict(rows[-1], segs=rows[-1]["segs"] + [{"s": " …", "hl": None}])
+
+
 def draft_view(run: dict) -> dict | None:
     """The draft as lines of runs. `lines` is all of it; `excerpt` keeps the greeting and the highlighted lines
     (with the line that introduces them) and collapses the rest to an ellipsis, so it stays big on a projector."""
@@ -167,20 +206,28 @@ def draft_view(run: dict) -> dict | None:
         return None
     text = _text(draft.get("text"), 4000)
     ranges = highlight_ranges(text, run.get("verdict"))
+    spans = [s for s in restricted_spans(text) if (*s, "leak") in ranges]
     lines, offset = [], 0
     for raw in text.split("\n"):
         segs = _line_segments(raw, offset, ranges)
-        lines.append({"segs": segs, "hl": any(s["hl"] for s in segs), "blank": not raw.strip(), "text": raw})
+        line = {"segs": segs, "hl": any(s["hl"] for s in segs), "blank": not raw.strip(), "text": raw}
+        cut = _sentence_cut(raw, offset, spans)
+        if cut is not None and cut < len(raw.rstrip()):  # the projector's copy of the line ends with the note
+            line["cut"] = _line_segments(raw[:cut], offset, ranges) + [{"s": " …", "hl": None}]
+        lines.append(line)
         offset += len(raw) + 1
     content = [i for i, ln in enumerate(lines) if not ln["blank"]]
     keep = set()
-    if any(ln["hl"] for ln in lines):
+    marked = sum(1 for i in content if lines[i]["hl"])
+    if marked:
         keep.add(content[0])
         for i in content:
             if lines[i]["hl"]:
                 keep.add(i)
                 before = [j for j in content if j < i]
-                if before and lines[before[-1]]["text"].rstrip().endswith(":"):
+                # the line that introduces them ("Verification details:") only while there is room for it on a 720p
+                # projector: with more than MAX_MARKED_WITH_INTRO marked lines the draft would not fit its card
+                if before and marked <= MAX_MARKED_WITH_INTRO and lines[before[-1]]["text"].rstrip().endswith(":"):
                     keep.add(before[-1])
     else:
         keep = set(content)
@@ -189,11 +236,11 @@ def draft_view(run: dict) -> dict | None:
         if i not in keep:
             continue
         if previous is not None and content.index(i) - content.index(previous) > 1:
-            excerpt.append({"segs": [{"s": "…", "hl": None}], "hl": False, "ellipsis": True})
-        excerpt.append({"segs": lines[i]["segs"], "hl": lines[i]["hl"]})
+            _elide(excerpt)
+        excerpt.append({"segs": lines[i].get("cut") or lines[i]["segs"], "hl": lines[i]["hl"]})
         previous = i
     if content and content[-1] not in keep:
-        excerpt.append({"segs": [{"s": "…", "hl": None}], "hl": False, "ellipsis": True})
+        _elide(excerpt)
     # `short` is what the projector draws: the excerpt when something is highlighted, otherwise the first
     # three lines, so a clean template reply stays big enough to read without crowding the trace.
     if any(ln["hl"] for ln in lines):
