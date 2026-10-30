@@ -370,6 +370,19 @@ def test_draft_view_held_shows_the_one_fixed_denial_and_never_the_reason():
     assert "proposed_time was not ISO-8601" not in out  # the why lives in the log and the meter's evidence
 
 
+def test_ui_uses_explicit_hex_colours_never_theme_dependent_names():
+    # "black on bright_green" was unreadable in a default palette; the projector may not use Rafi's theme.
+    import re
+    from pathlib import Path
+
+    source = Path(ui.__file__).read_text(encoding="utf-8")
+    named = re.findall(r"\bbright_[a-z]+\b|(?:\bon |\bbold |style=\")(?:red|green|yellow|blue|magenta|cyan|white|black)\b",
+                       source)
+    assert not named, f"theme-dependent colour names in ui.py: {sorted(set(named))}"
+    for colour in re.findall(r"#[0-9a-fA-F]{3,8}\b", source):
+        assert len(colour) in (4, 7), colour  # a plain #rgb or #rrggbb Rich can parse
+
+
 def test_held_notice_is_exactly_tools_denial():
     # ui.py may not import tools, so this test is what keeps its copy of the sentence from drifting
     tools = pytest.importorskip("ghostreply.tools")
