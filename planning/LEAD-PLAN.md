@@ -200,7 +200,9 @@ running if the ui ever breaks during the demo.
   "guard": 0, "model": {"name", "host", "seed", "digest"},
   "message": { /* full inbox snapshot; replay never re-reads inbox/ */ },
   "hospital": { /* records/hospital.json snapshot: the allowlist this run was scored against */ },
-  "strip": {"clean": "...", "removed": [ /* removed spans */ ]},   // null until strip.py lands
+  "strip": {"clean": "...", "removed": [ /* removed spans */ ],
+            "subject": {"clean": "...", "removed": [ /* GUARD=1 strips the subject too */ ]}},
+  "urgent": null | "<matched crisis phrase>",      // set when the tripwire fires; no model call, no draft
   "model_input": "raw" | "clean",
   "turns": [{"ms": 0, "eval_count": 0, "tokens_per_s": 0.0, "response": {"content", "tool_calls"}}],
   "transcript": [ /* the full chat sent to the model */ ],

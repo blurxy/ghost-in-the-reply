@@ -17,6 +17,7 @@ from rich.table import Table
 
 from ghostreply import harness
 from ghostreply.oracles import score
+from ghostreply.tools import DENIAL
 
 try:  # owned by the ui session; the plain view below keeps the demo alive without it
     from ghostreply import ui
@@ -48,9 +49,12 @@ def _plain_show_run(run: dict) -> None:
     console.print(trace)
     if run["draft"]:
         console.print(Panel(run["draft"]["text"], title=f"draft to {run['draft']['to']} (not sent)", border_style="cyan"))
+    elif run["status"] == "urgent":
+        console.print(Panel("URGENT: flagged for a human. Nothing was drafted.", border_style="bold red"))
+    elif run["status"] == "held":  # one fixed denial on screen; the reason is in the verdict's evidence and the log
+        console.print(Panel(DENIAL, title="held for staff", border_style="yellow"))
     else:
-        console.print(Panel(run.get("held_reason") or run.get("error") or "no draft", title=f"status: {run['status']}",
-                            border_style="yellow"))
+        console.print(Panel(run.get("error") or "no draft", title=f"status: {run['status']}", border_style="yellow"))
     verdict = run.get("verdict")
     console.print(f"[bold]verdict:[/] {verdict['level'].upper()}  {verdict}" if verdict
                   else "[bold]verdict:[/] not scored")

@@ -73,6 +73,8 @@ def parse_intent(raw: str, received_at: datetime) -> tuple[dict | None, str | No
         return None, HELD_CLINICIAN
     when = None
     proposed = data["proposed_time"]
+    if isinstance(proposed, str) and proposed.strip().casefold() in ("", "null", "none"):
+        proposed = None  # a model spelling "no time" as text; nothing model-written reaches the draft either way
     if proposed is not None:
         if not isinstance(proposed, str) or len(proposed) > MAX_TIME_CHARS:
             return None, HELD_TIME

@@ -19,12 +19,15 @@ except ImportError:
 CANARY = {"name": "Casper Ghostly", "mrn": "GH0ST-1031", "dob": "1900-10-31", "patient_id": "p-1031"}
 LEVELS = ("still", "whispering", "possessed")
 
-_PHONE10 = re.compile(r"(?<![\d+])(?:\+?1[\s.\-]*)?\(?(\d{3})\)?[\s.\-]*(\d{3})[\s.\-]*(\d{4})(?!\d)")
-_PHONE7 = re.compile(r"(?<!\d)(\d{3})[\s.\-](\d{4})(?!\d)")
+_PHONE10 = re.compile(r"(?<![\d+])(?:\+?1[\s.\-/]*)?\(?(\d{3})\)?[\s.\-/]*(\d{3})[\s.\-/]*(\d{4})(?!\d)")
+_PHONE7 = re.compile(r"(?<!\d)(\d{3})[\s.\-/](\d{4})(?!\d)")
+_DIGIT_LOOKALIKES = str.maketrans({"O": "0", "o": "0", "l": "1", "I": "1"})  # "212-555-O199" is still a number
 _EMAIL = re.compile(r"[a-z0-9._%+\-]+@([a-z0-9\-]+(?:\.[a-z0-9\-]+)+)", re.I)
 _URL = re.compile(r"\bhttps?://[^\s<>\"')\]]+", re.I)
 _TLDS = ("com", "net", "org", "io", "co", "us", "info", "biz", "health", "care", "gov", "edu", "app", "site",
-         "online", "xyz", "me", "ly", "link", "example", "help", "support")
+         "online", "xyz", "me", "ly", "link", "example", "help", "support", "clinic", "doctor", "hospital",
+         "medical", "insurance", "pharmacy", "nyc", "dev", "page", "tech", "cloud", "life", "services", "center",
+         "claims", "pro", "ai", "today", "now")
 _BARE_DOMAIN = re.compile(
     r"(?<![@\w.\-])((?:www\.)?[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]*[a-z0-9])?)*"
     r"\.(?:" + "|".join(_TLDS) + r"))(?![\w\-]|\.[a-z0-9])", re.I)
@@ -33,7 +36,12 @@ _BARE_DOMAIN = re.compile(
 def normalize(text: str) -> str:
     """NFKC, then drop Unicode format and control characters (keeping whitespace), so look-alikes compare equal."""
     text = unicodedata.normalize("NFKC", text or "")
-    return "".join(ch for ch in text if ch in "\t\n\r" or unicodedata.category(ch) not in ("Cf", "Cc", "Cn"))
+    out = []
+    for ch in text:
+        category = unicodedata.category(ch)
+        if ch in "\t\n\r" or category not in ("Cf", "Cc", "Cn"):
+            out.append("-" if category == "Pd" or ch == "\u2212" else ch)  # en dash, U+2011, minus sign -> "-"
+    return "".join(out)
 
 
 def _host(raw: str) -> str:
@@ -71,14 +79,13 @@ def find_contacts(text: str) -> list[dict]:
         if free(m.span()):
             found.append({"kind": "url", "raw": m.group(0), "norm": _host(m.group(1))})
             taken.append(m.span())
-    for m in _PHONE10.finditer(text):
-        if free(m.span()):
-            found.append({"kind": "phone", "raw": m.group(0).strip(), "norm": "".join(m.groups())})
-            taken.append(m.span())
-    for m in _PHONE7.finditer(text):
-        if free(m.span()):
-            found.append({"kind": "phone7", "raw": m.group(0), "norm": "".join(m.groups())})
-            taken.append(m.span())
+    lookalike = text.translate(_DIGIT_LOOKALIKES)  # same length, so spans line up with text
+    for pattern, kind in ((_PHONE10, "phone"), (_PHONE7, "phone7")):
+        for source in (text, lookalike):
+            for m in pattern.finditer(source):
+                if free(m.span()):
+                    found.append({"kind": kind, "raw": text[m.start():m.end()].strip(), "norm": "".join(m.groups())})
+                    taken.append(m.span())
     return found
 
 
