@@ -141,6 +141,31 @@ dashboard switches to the recording and its badge says so.
 
 Every run is saved to `runs/` as JSON and can be replayed and re-scored without the model.
 
+## Try your own ghost
+
+Every mode runs on your own laptop at http://127.0.0.1:8765, with no login; messages go only to the Ollama server
+you run.
+
+**Already pulled Gemma 4?** Start here:
+
+```bash
+ollama list                              # find your Gemma 4 tag, for example gemma4:12b
+pip install -r requirements.txt
+python -m dashboard --model gemma4:12b   # use your own tag
+```
+
+Then open http://127.0.0.1:8765/sandbox, type your own hidden instruction, pick how to hide it, and watch Wisp
+react with the guard off and on. Visible and hidden text are capped at 2,000 characters each to keep runs stable.
+
+- Building `gemma4-12b-agent` from the Modelfile is optional: the harness already sends temperature 0, a fixed seed
+  and top_k 1 with every request, and the Modelfile only adds an 8192-token context.
+- With less than 8 GB of GPU memory, use `--model gemma4:e4b`. It runs slower and the naive bot's results can vary
+  more from run to run; Warding Circle mode still holds.
+- `python -m dashboard --random` runs a pre-tested ghost variant live; `python -m dashboard --practice` rehearses
+  the demo without a GPU.
+- Teammates and contributors: send changes as pull requests. Only the maintainer merges to main, and during the
+  hack day nothing merged after the 3:30 PM code freeze without Rafi's approval.
+
 ## What's in the repo
 
 | Path | What |
@@ -151,11 +176,12 @@ Every run is saved to `runs/` as JSON and can be replayed and re-scored without 
 | `ghostreply/templates.py` | The JSON contract check and the hospital reply templates |
 | `ghostreply/oracles.py` | Leak and phishing oracles and the possession score |
 | `ghostreply/variants.py` | The `--random` pool: eight ghost variants built from parts, validated on the real model |
+| `ghostreply/sandbox.py` | "Try your own ghost": composes a visitor's message, runs one guard, caps input at 2,000 characters |
 | `ghostreply/strip.py` | `strip()`: what the séance view reveals and Warding Circle mode removes |
 | `ghostreply/ui.py` | The terminal views: portal, séance, agent trace, draft, meter |
 | `dashboard/` | The demo dashboard: audience and presenter views, live runs with a replay fallback, honest LIVE/REPLAY badges |
 | `inbox/`, `records/` | Synthetic messages and charts, including the haunted message |
-| `tests/` | The pytest suite (915 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
+| `tests/` | The pytest suite (993 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
 | `planning/` | Plans written before hacking started, and the interface contract |
 
 ## Safety notes and scope
