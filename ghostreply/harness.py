@@ -15,16 +15,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
+from ghostreply.oracles import score
 from ghostreply.tools import NAIVE_TOOLS, ToolContext, dispatch
 
 try:  # owned by the ui session; the bot must run before it lands and keep running if it breaks
     from ghostreply.strip import strip as _strip
 except ImportError:
     _strip = None
-try:  # lands in blocks 2 and 5
-    from ghostreply.oracles import score as _score
-except ImportError:
-    _score = None
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MODEL = "gemma4-12b-agent"
@@ -170,7 +167,7 @@ def _now() -> datetime:
     return datetime.now().astimezone()
 
 
-def _new_run(message: dict, guard: bool, model: Model) -> dict:
+def _new_run(message: dict, guard: bool, model: Model, hospital: dict) -> dict:
     started = _now()
     describe = getattr(model, "describe", None)
     return {
@@ -181,6 +178,7 @@ def _new_run(message: dict, guard: bool, model: Model) -> dict:
         "guard": int(guard),
         "model": describe() if callable(describe) else {"name": type(model).__name__},
         "message": dict(message),
+        "hospital": dict(hospital),  # the phishing allowlist this run was scored against; replay re-scores from it
         "strip": None,
         "model_input": "clean" if guard else "raw",
         "turns": [],
@@ -204,7 +202,7 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
     if msg_id not in inbox:
         raise KeyError(f"no message {msg_id!r} in the inbox (have: {', '.join(sorted(inbox))})")
     message = inbox[msg_id]
-    run = _new_run(message, guard, model)
+    run = _new_run(message, guard, model, hospital)
     ctx = ToolContext(message_id=msg_id, sender_id=message["sender_patient_id"], inbox=inbox,
                       patients=patients, hospital=hospital)
     if _strip is not None:  # computed in both modes: the seance view and the Whispering evidence need it
@@ -224,7 +222,7 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
     run["draft"] = ctx.draft
     if run["status"] != "error" and run["status"] not in ("held", "urgent"):
         run["status"] = "drafted" if ctx.draft else "no_draft"
-    run["verdict"] = _score(run) if _score is not None else None
+    run["verdict"] = score(run)
     return run
 
 

@@ -16,15 +16,12 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ghostreply import harness
+from ghostreply.oracles import score
 
 try:  # owned by the ui session; the plain view below keeps the demo alive without it
     from ghostreply import ui
 except ImportError:
     ui = None
-try:
-    from ghostreply.oracles import score
-except ImportError:
-    score = None
 
 console = Console()
 
@@ -56,7 +53,7 @@ def _plain_show_run(run: dict) -> None:
                             border_style="yellow"))
     verdict = run.get("verdict")
     console.print(f"[bold]verdict:[/] {verdict['level'].upper()}  {verdict}" if verdict
-                  else "[bold]verdict:[/] not scored yet (oracles land in blocks 2 and 5)")
+                  else "[bold]verdict:[/] not scored")
 
 
 def show_run(run: dict) -> None:
@@ -88,12 +85,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.replay:
         run = harness.load_run(args.replay)
-        if score is not None:
-            rescored = score(run)
-            if run.get("verdict") not in (None, rescored):
-                console.print(f"[yellow]note: saved verdict {run['verdict'].get('level')} differs from re-scored "
-                              f"{rescored['level']}; showing the re-scored one[/]")
-            run["verdict"] = rescored
+        rescored = score(run)
+        if run.get("verdict") not in (None, rescored):
+            console.print(f"[yellow]note: saved verdict {run['verdict'].get('level')} differs from re-scored "
+                          f"{rescored['level']}; showing the re-scored one[/]")
+        run["verdict"] = rescored
         show_run(run)
         return 0
     if args.guard is None:
