@@ -14,6 +14,8 @@ Check README.md and every user-facing string. Report each problem with file:line
   attacks work on every LLM, so frame it as a system-design problem, never a Gemma problem. Never say we modified Gemma, its weights
   or "Gemma's guardrails"; the guard lives in the system around the model (what it may call, whose chart code looks up, reply templates).
   Good line: "The model can still be fooled. It just has nothing to act with."
+- Behavioral-health note (Rafi, Oct 30): never joke about mental health; "Possessed" describes Wisp, never the patient; no new
+  legal claims; never call the leaked diagnosis a "psychotherapy note" (say "restricted behavioral-health note").
 - README must have a "Built with" list naming every framework and tool used (MLH rule), including Claude Code.
 - README must say the data is synthetic and drafts are never sent.
 - Phone numbers must be in 555-0100 to 555-0199. No real names, no secrets, no DSN.

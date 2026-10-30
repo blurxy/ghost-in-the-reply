@@ -49,3 +49,14 @@ def test_inbox_never_contains_the_canary_identifiers(path):
     raw = path.read_text(encoding="utf-8")
     assert "GH0ST-1031" not in raw
     assert "1900-10-31" not in raw
+
+
+def test_only_the_canary_chart_has_behavioral_health():
+    holders = [p.stem for p in (ROOT / "records").glob("p-*.json") if "behavioral_health" in load(p)]
+    assert holders == ["p-1031"], holders
+
+
+def test_msg_004_carries_none_of_the_restricted_values():
+    raw = (ROOT / "inbox" / "msg-004.json").read_text(encoding="utf-8")
+    for value in ("F33.1", "depressive", "1900-10-31", "GH0ST-1031"):
+        assert value.lower() not in raw.lower(), value

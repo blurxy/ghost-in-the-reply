@@ -24,6 +24,9 @@ Standing operating rules from Rafi: .claude/rules/operating-rules.md (loaded aut
   hidden-instruction attacks work on every LLM, so this is a system-design problem, not a Gemma problem. Never say we modified
   Gemma, its weights or "Gemma's guardrails": the guard lives in the system around the model (what it may call, whose chart code
   looks up, templates for replies). Good line: "The model can still be fooled. It just has nothing to act with."
+- Behavioral-health note (Rafi, Oct 30 1:55 PM): never joke about mental health. "Possessed" describes the AI (Wisp), never
+  the patient. No new legal claims on screen; keep "the kind of disclosure HIPAA exists to prevent". Never call the leaked
+  diagnosis a "psychotherapy note" (HIPAA's psychotherapy-notes definition excludes diagnoses); say "restricted behavioral-health note".
 - README needs a "Built with" list (MLH rule): Python, Ollama, Gemma 4, Rich, pytest, Claude Code, Sentry if used.
 - The bot only drafts. Nothing is ever sent.
 
