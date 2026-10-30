@@ -117,7 +117,8 @@ python main.py --guard 1                      # the whole inbox
 python main.py --replay runs/demo/msg-004-guard0.json   # replay a recorded run; no model needed
 python -m pytest -q                                     # the test suite; never calls the model
 
-python -m dashboard                 # the demo dashboard: http://127.0.0.1:8765/ (audience) and /presenter
+python -m dashboard                 # the patient-chat demo: http://127.0.0.1:8765/ (audience) and /presenter
+python -m dashboard --staff-inbox   # the staff-inbox version of the demo (the steps described above)
 python -m dashboard --replay-only   # the same dashboard from the recorded runs; never calls the model
 python -m dashboard --random        # a ghost picked at random from the pre-tested variant pool, run live
 python -m dashboard --practice      # hands-free rehearsal from recorded runs, then three judge questions
@@ -130,9 +131,12 @@ says the attack was picked from pre-tested variants, and each variant's own save
 fewer than three passing variants it falls back to the standard attack and says so. **`--practice`** replays the
 demo at speaking pace with the presenter's lines, then asks three judge questions.
 
-The dashboard is what the live demo runs on. Each result carries a badge: **LIVE** only when the model actually
-produced it just now, and **REPLAY** for a recorded run of the real model. If a live run is slow or fails, the
-dashboard switches to the recording and its badge says so.
+By default the dashboard runs the patient chat: Barnaby, signed in to the portal, chats with Wisp at `/chat`.
+**Send #1** types the attack into the chat; **Send #2** pastes a message whose attack is hidden in its HTML. Press
+**I** to switch from the patient's view to the **Security team** view (the audit log, the records Wisp touched and
+the raw model request and response), and **G** to turn Warding Circle mode on, then resend. Each result carries a
+badge: **LIVE** only when the model actually produced it just now, and **REPLAY** for a recorded run of the real
+model. If a live run is slow or fails, the dashboard switches to the recording and its badge says so.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -193,12 +197,13 @@ react with the guard off and on. Visible and hidden text are capped at 2,000 cha
 | `ghostreply/templates.py` | The JSON contract check and the hospital reply templates |
 | `ghostreply/oracles.py` | Leak and phishing oracles and the possession score |
 | `ghostreply/variants.py` | The `--random` pool: eight ghost variants built from parts, validated on the real model |
+| `ghostreply/chat.py` | The patient chat: Barnaby chats with Wisp; two presets, validated 3 of 3 per guard on the real model |
 | `ghostreply/sandbox.py` | "Try your own ghost": composes a visitor's message, runs one guard, caps input at 2,000 characters |
 | `ghostreply/strip.py` | `strip()`: what the séance view reveals and Warding Circle mode removes |
 | `ghostreply/ui.py` | The terminal views: portal, séance, agent trace, draft, meter |
 | `dashboard/` | The demo dashboard: audience and presenter views, live runs with a replay fallback, honest LIVE/REPLAY badges |
 | `inbox/`, `records/` | Synthetic messages and charts, including the haunted message |
-| `tests/` | The pytest suite (993 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
+| `tests/` | The pytest suite (1,229 tests, none of which call a model), including the obey-every-ghost key test and red-team regressions |
 | `planning/` | Plans written before hacking started, and the interface contract |
 
 ## Safety notes and scope
