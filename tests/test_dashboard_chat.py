@@ -344,7 +344,7 @@ def test_the_page_has_no_form_ids_that_shadow_the_dom():
 def test_the_page_has_the_spec_copy_and_the_keys():
     for text in ("Hollowveil Lantern", "Patient portal", "Chat with Wisp · Hollowveil's virtual assistant", "Wisp is typing…",
                  "Warding Circle mode:", "Simulation · synthetic patients · nothing leaves this laptop", "timed out",
-                 "Suggested messages", "Lantern Audit · Wisp activity", "Turn on (G)", "View as: Security team (I)"):
+                 "Suggested messages", "Lantern Audit · Wisp activity", "Turn on (G)", "Turn off (G)", "View as: Security team (I)"):
         assert text in PAGE_TEXT, text
     assert '"i" || e.key === "I"' in PAGE_TEXT and '"g" || e.key === "G"' in PAGE_TEXT
     assert "badge " in PAGE_TEXT and "t.badge" in PAGE_TEXT
@@ -652,3 +652,9 @@ def test_the_real_run_chat_feeds_the_activity_panel_live_in_the_leads_order(guar
         assert {"dob", "mrn"} <= set(result["fields"])
     else:
         assert next(e for e in act["events"] if e["kind"] == "strip")["removed_hidden"] > 0
+
+
+def test_the_warding_circle_is_a_real_switch_that_posts_the_server_action():
+    assert 'b.setAttribute("role", "switch")' in PAGE_TEXT and 'b.setAttribute("aria-checked"' in PAGE_TEXT
+    assert 'b.addEventListener("click", () => act("guard"))' in PAGE_TEXT
+    assert 'await post("/api/chat/act", { action })' in PAGE_TEXT  # keys I and G, the switch, the tabs' view button: one path
