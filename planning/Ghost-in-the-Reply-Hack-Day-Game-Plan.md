@@ -140,7 +140,7 @@ The 14-agent pass is done; adversarial verify changed two things materially. **T
 
 | Assumption | Verdict | What it means |
 | --- | --- | --- |
-| Will a 4B model take the bait? | At risk, but **confirmed susceptible** | Small 4B models reliably obey hidden injections. The risk is *execution*, not gullibility. (Verify refuted only an inverted summary line, not the susceptibility evidence.) |
+| Will a 4B model take the bait? | At risk, but **confirmed** | Any LLM obeys a hidden instruction that looks like part of its job; the risk is *execution* (tool-call reliability), not the model. (Verify refuted only an inverted summary line, not the susceptibility evidence.) |
 | Gemma/Ollama tool-calling | **Refuted 3/3** | The rosy \~30 tok/s and “30–60s” figures are a predictor's estimate, not a measurement; real M2 Pro TTFT can hit \~7s at 4K context, and e4b tool-calling breaks after 3–4 sequential calls (can't chain). Do **not** build a multi-hop agent. |
 | Oracle + guard soundness | **Confirmed (0/3 refute)** | The guard needs real hardening (below). |
 
@@ -273,7 +273,7 @@ The DEV challenge is judged **mostly on writing quality**, then theme fit, creat
 **Edge cases to watch**
 
 - Gemma not taking the bait is still a valid result; keep 2–3 ghost strengths ready plus the backup clip.
-- Small models also fail normal tasks, so keep the task tiny.
+- Keep the task tiny so the demo stays repeatable on a 12B model.
 - First Ollama response is slow while the model loads; warm it up before the demo.
 
 **Sources**

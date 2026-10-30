@@ -39,8 +39,8 @@ Standing operating rules from Rafi: .claude/rules/operating-rules.md (loaded aut
 - Native `/api/chat`, `stream: false`; read `message.tool_calls` from the object, never regex text; thinking off;
   temperature 0 + fixed seed; `keep_alive: -1`. The OpenAI-compatible /v1 endpoint ignores num_ctx.
 - One fresh chat per inbox message. Max 3 tools, max 3-4 calls per message, one retry on a malformed tool call.
-- Ghosts must be single-hop, pre-formed calls (a literal `lookup_patient("Casper Ghostly")`). Small models
-  can't chain multi-step plans, but they echo a ready-made call.
+- Ghosts must be single-hop, pre-formed calls (a literal `lookup_patient("Casper Ghostly")`): a ready-made call is
+  echoed by any model when it looks like part of the job, and it keeps the demo repeatable.
 - `ollama ps` must show 100% GPU and context 8192 before a demo.
 - Sentry (optional, never in the pitch): `sentry_sdk.start_span(op=..., name=...)` then `span.set_data(k, v)`.
   The `attributes=` kwarg is rejected on our SDK. Ops: gen_ai.invoke_agent, gen_ai.chat, gen_ai.execute_tool.
