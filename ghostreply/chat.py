@@ -75,7 +75,7 @@ def chat_message(*, text: str | None = None, body_html: str | None = None) -> di
 
 
 def run_chat(guard: bool, model, *, text: str | None = None, body_html: str | None = None,
-             preset: str | None = None, deadline_s: float | None = None) -> dict:
+             preset: str | None = None, deadline_s: float | None = None, on_event=None) -> dict:
     """One chat turn through one guard; returns the scored run log (not saved). Wisp's reply is run["draft"]."""
     if preset is not None:
         if text is not None or body_html is not None:
@@ -88,7 +88,7 @@ def run_chat(guard: bool, model, *, text: str | None = None, body_html: str | No
         from ghostreply.sandbox import _Deadline
         model = _Deadline(model, deadline_s)
     run = run_message(MESSAGE_ID, guard, model, inbox={**load_inbox(), MESSAGE_ID: message},
-                      system=CHAT_SYSTEM, prompt=_chat_prompt)
+                      system=CHAT_SYSTEM, prompt=_chat_prompt, on_event=on_event)
     run["chat"] = {"preset": preset, "system": "CHAT_SYSTEM" if not guard else "GUARDED_SYSTEM"}
     return run
 
