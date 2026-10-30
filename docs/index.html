@@ -34,6 +34,7 @@ html,body{margin:0;height:100%;background:#0b0b10;color:#a0a0b4;overflow:hidden;
   <button data-k="ArrowLeft" aria-label="Back">&larr; Back</button>
   <span id="hint">Tap or press &rarr; to step through. Replays of real Gemma 4 runs.</span>
   <button data-k="ArrowRight" aria-label="Next">Next &rarr;</button>
+  <button data-k="i" aria-label="Switch between Front desk and Security team">Front desk &#8596; Security team (I)</button>
   <button id="play">&#9654; Play</button>
 </div>
 <script>
@@ -64,7 +65,7 @@ addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.key === "f" || e.key === "F") {
     document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen().catch(() => {});
-  } else if (["ArrowRight","ArrowLeft"," ","PageDown","PageUp","r","R"].includes(e.key)) {
+  } else if (["ArrowRight","ArrowLeft"," ","PageDown","PageUp","r","R","i","I"].includes(e.key)) {
     send(e.key);
   } else return;
   e.preventDefault();

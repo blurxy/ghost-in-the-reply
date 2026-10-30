@@ -99,6 +99,14 @@ class LiveRunner:
                 return
         self.restart()
 
+    def age(self) -> float | None:
+        """Seconds since the older of the two finished runs ended; None while there is nothing, or a run is still going."""
+        with self._lock:
+            ends = [slot.get("t1") for slot in self._slots.values()]
+            if not ends or any(t is None for t in ends):
+                return None
+            return self._clock() - min(ends)
+
     def restart(self) -> None:
         """Throw away the old results and run both again. A stale thread's late results are ignored."""
         with self._lock:

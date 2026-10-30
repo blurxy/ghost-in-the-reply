@@ -32,7 +32,7 @@ W, H = 1920, 1080  # the stage is laid out exactly as on the projector, then sca
 MANUAL_MS = 86_400_000  # the page's autoplay timer, pushed out a day: the visitor steps through by hand
 PLAY_MS = 7_000
 
-KEYS = ["ArrowRight", "ArrowLeft", " ", "PageDown", "PageUp", "r", "R"]
+KEYS = ["ArrowRight", "ArrowLeft", " ", "PageDown", "PageUp", "r", "R", "i", "I"]  # i: Front desk / Security team (the page ignores it while typing)
 
 
 class ExportError(RuntimeError):
@@ -144,6 +144,7 @@ html,body{{margin:0;height:100%;background:#0b0b10;color:#a0a0b4;overflow:hidden
   <button data-k="ArrowLeft" aria-label="Back">&larr; Back</button>
   <span id="hint">Tap or press &rarr; to step through. Replays of real Gemma 4 runs.</span>
   <button data-k="ArrowRight" aria-label="Next">Next &rarr;</button>
+  <button data-k="i" aria-label="Switch between Front desk and Security team">Front desk &#8596; Security team (I)</button>
   <button id="play">&#9654; Play</button>
 </div>
 <script>

@@ -20,6 +20,7 @@ from typing import Callable
 from ghostreply.harness import load_inbox, load_patients, load_run
 
 from . import qa
+from .inside import message_context, patient_banner
 from .live import Choice, LiveRunner, resolve
 from .pool import POOL_DIR, POOL_MIN, load_pool, pick, run_paths
 from .steps import STEPS, personalise, practice_ms
@@ -27,6 +28,7 @@ from .viewmodel import badge, inbox_view, message_view, run_view
 
 ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal")
 PREFLIGHT_EVERY_S = 10.0
+STALE_LIVE_AFTER_S = 600.0  # a live result older than this is run again when the title opens (Rafi: 10 minutes)
 REPLAY_FILES = {0: "msg-004-guard0.json", 1: "msg-004-guard1.json"}
 
 
@@ -227,9 +229,22 @@ class DashboardState:
         return {"fallback": self.fallback, "id": v.get("id"), "decoy": v.get("decoy"), "phone": v.get("phone"),
                 "hiding": v.get("hiding"), "kept": len(self.pool), "total": self.pool_total, "note": self.pool_note}
 
+    def _refresh_stale_live(self) -> None:
+        """The title is open: live results younger than STALE_LIVE_AFTER_S stay (going back and forth costs the GPU
+        nothing); older ones are run again, so a LIVE badge on stage never sits on a result from hours ago."""
+        if self.live is None or self.mode != "live":
+            return
+        age = self.live.age()
+        if age is None:
+            self.live.start()  # nothing yet: start; a run still going is left alone (start is a no-op once slots exist)
+        elif age > STALE_LIVE_AFTER_S:
+            self.live.restart()
+
     def snapshot(self) -> dict:
         with self._lock:
             now = self._clock()
+            if self.step == 0:  # opening the title, whenever that is
+                self._refresh_stale_live()
             self._practice_tick(now)
             if self._preflight is not None and now - self._preflight_at > PREFLIGHT_EVERY_S:
                 self.refresh_preflight()  # pills follow reality: the model finishes loading, the power profile changes
@@ -271,6 +286,10 @@ class DashboardState:
             shown = first.get("message") if isinstance(first.get("message"), dict) else {}
             name = (self._patients.get(shown.get("sender_patient_id")) or {}).get("name") if isinstance(self._patients, dict) else None
             message = message_view(shown, first.get("strip"), sender_name=name) if first else None
+            if message is not None:  # the banner and the routing lines come from the sender's record and the message
+                record = self._patients.get(shown.get("sender_patient_id")) if isinstance(self._patients, dict) else None
+                message["patient"] = patient_banner(record, on=shown.get("received_at"))
+                message["context"] = message_context(shown)
             inbox = self._inbox
             if self.variant and isinstance(inbox, dict) and shown.get("id"):  # this variant's message replaces msg-004
                 inbox = {k: v for k, v in inbox.items() if k != "msg-004"} | {shown["id"]: shown}
@@ -302,8 +321,7 @@ class DashboardState:
                         self.demo_started = now
                     if target == 0:
                         self.demo_started = None
-                        if self.live is not None and self.mode == "live":
-                            self.live.start()
+                        self._refresh_stale_live()
             elif action == "rerun":
                 self.epoch += 1
                 self.step_started = now

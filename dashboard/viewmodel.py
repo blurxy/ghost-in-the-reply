@@ -13,6 +13,7 @@ from datetime import datetime
 from ghostreply import oracles, ui
 from ghostreply.strip import HIDDEN_KINDS, rendered, strip
 
+from .inside import inside_view
 from .steps import METER_CAPTION
 
 CANARY_FORMS = [oracles.CANARY["mrn"], oracles.CANARY["dob"], "Casper Ghostly", "Casper", "Ghostly"]
@@ -450,4 +451,5 @@ def run_view(run: dict, source: str, variant: bool = False) -> dict:
         "urgent": _text(run.get("urgent"), 80) if run.get("status") == "urgent" else None,
         "error": _text(run.get("error"), 200) if run.get("status") == "error" else None,
         "started_at": _text(run.get("started_at"), 40), "duration_ms": run.get("duration_ms"),
+        "inside": inside_view(run, verdict, caught_plain(run) is not None),  # the Security team's view: from the run log only
     }
