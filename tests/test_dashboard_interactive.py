@@ -93,3 +93,43 @@ def test_the_toggle_and_the_role_switch_post_server_actions():
     assert 'act("view_mode", "staff")' in PAGE_TEXT and 'act("view_mode", "wisp")' in PAGE_TEXT
     assert 'function toggleInside() { act("role"); }' in PAGE_TEXT
     assert '$("#view-btn").addEventListener("click", toggleInside)' in PAGE_TEXT
+
+
+def test_any_message_in_the_list_opens_by_a_server_action_and_the_views_carry_all_of_them():
+    state, _ = fresh()
+    state.act("goto", 1)
+    views = state.views()
+    ids = [r["id"] for r in views["inbox"]]
+    assert len(ids) > 1 and set(views["messages"]) == set(ids)  # every listed message can be read, with its own patient banner
+    other = next(i for i in ids if i != views["message"]["id"])
+    assert state.snapshot()["selected"] is None
+    snap = state.act("open_message", other)
+    assert snap["selected"] == other and snap["step"] == 1
+    assert views["messages"][other]["from"] != views["message"]["from"] or views["messages"][other]["subject"] != views["message"]["subject"]
+    assert state.act("open_message", views["message"]["id"])["selected"] == views["message"]["id"]  # and back again
+    assert state.act("next")["selected"] is None  # a new step opens on the demo's own message
+
+
+def test_open_message_refuses_ids_the_list_does_not_show():
+    state, _ = fresh()
+    state.act("goto", 1)
+    for bad in ("nope", "", None, 4, ["msg-001"], {"id": "msg-001"}, "../../etc/passwd", "msg-004; ls"):
+        assert state.act("open_message", bad)["selected"] is None
+
+
+def test_the_toggle_works_on_any_opened_message_and_the_page_wires_the_clicks():
+    state, _ = fresh()
+    state.act("goto", 2)
+    other = next(r["id"] for r in state.views()["inbox"] if not r["selected"])
+    state.act("open_message", other)
+    assert state.act("view_mode", "wisp")["wisp_view"] is True
+    assert state.views()["messages"][other]["seance"] is not None
+    assert 'act("open_message", r.id)' in PAGE_TEXT and "history.pushState" in PAGE_TEXT and 'addEventListener("popstate"' in PAGE_TEXT
+    assert "function curMessage()" in PAGE_TEXT and "inboxPanes(stage, { pick: true })" in PAGE_TEXT
+
+
+def test_the_chat_flow_keeps_the_staff_inbox_reachable_after_the_main_flow():
+    from dashboard.steps import flow_steps
+    ids = [s["id"] for s in flow_steps("chat")]
+    assert ids[:4] == ["title", "chat", "why", "closer"] and ids[4:] == ["hook", "reveal"]
+    assert [s["id"] for s in flow_steps("staff")][:3] == ["title", "hook", "reveal"]

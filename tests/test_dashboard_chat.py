@@ -367,7 +367,7 @@ DASH_PAGE = (CHAT_PAGE.with_name("page.html")).read_text(encoding="utf-8")
 
 
 def test_the_chat_flow_is_title_chat_why_closer_and_the_staff_flow_is_unchanged():
-    assert [s["id"] for s in dsteps.flow_steps("chat")] == ["title", "chat", "why", "closer"]
+    assert [s["id"] for s in dsteps.flow_steps("chat")] == ["title", "chat", "why", "closer", "hook", "reveal"]  # the staff inbox follows
     assert [s["id"] for s in dsteps.flow_steps("staff")] == [s["id"] for s in dsteps.STEPS]
     assert [s["id"] for s in dsteps.flow_steps("anything else")] == [s["id"] for s in dsteps.STEPS]
 
@@ -390,7 +390,7 @@ def chat_state(**kw) -> DashboardState:
 def test_state_in_the_chat_flow_has_four_steps_and_says_which_flow_and_whether_stage_buttons_exist():
     state = chat_state()
     snap = state.snapshot()
-    assert snap["flow"] == "chat" and snap["n"] == 4 and snap["stage"] is False
+    assert snap["flow"] == "chat" and snap["n"] == 6 and snap["stage"] is False  # four main steps, then the staff inbox
     state.stage_enabled = True
     assert state.snapshot()["stage"] is True
     assert DashboardState(DEMO, live=None, mode="replay").snapshot()["flow"] == "staff"

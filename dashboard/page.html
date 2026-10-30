@@ -148,6 +148,8 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .mrow .tm{align-self:start;text-align:right;font-size:.8em;white-space:nowrap}
 .mrow .tm .dot{display:inline-block;width:.6em;height:.6em;border-radius:50%;background:var(--mag);margin-left:.4em}
 .mrow .lab{display:inline-block;margin-top:.25em;font-size:.7em;font-weight:700;padding:.05em .6em;border-radius:999px;color:#000}
+.mrow.pick{cursor:pointer}
+.mrow.pick:hover{background:#17172a}
 .mrow.sel{background:#1b1b2b;border-left-color:var(--mag);color:var(--fg)}
 .mlist.compact .mrow{grid-template-columns:auto;justify-content:center;padding:1vh .3vw}
 .mlist.compact .who2,.mlist.compact .tm{display:none}
@@ -444,6 +446,10 @@ function scheduleNext() {
   autoTimer = setTimeout(() => localAct("next"), Math.max(STEP_MS, step.min_ms));
 }
 function localAct(action, arg) {
+  if (action === "open_message") {  // the static replay: the same click, kept here
+    if (V && V.messages && V.messages[arg]) { S.selected = arg; S.wisp_view = false; S.epoch++; render(); chrome(); }
+    return;
+  }
   if (action === "role" || action === "view_mode") {  // the static replay has no server: the same two switches, kept here
     if (action === "role") { S.inside = INSIDE = !INSIDE; syncRole(); } else S.wisp_view = arg === undefined ? !S.wisp_view : arg === "wisp";
     S.epoch++; render(); chrome();
@@ -452,11 +458,16 @@ function localAct(action, arg) {
   const before = S.step;
   if (action === "next") S.step = Math.min(S.n - 1, S.step + 1);
   else if (action === "back") S.step = Math.max(0, S.step - 1);
-  if (S.step !== before || action === "rerun") { S.epoch++; S.step_started = Date.now() / 1000; render(); chrome(); scheduleNext(); }
+  if (S.step !== before || action === "rerun") { S.selected = null; S.wisp_view = false; S.epoch++; S.step_started = Date.now() / 1000; render(); chrome(); scheduleNext(); }
 }
 
 /* --------------------------------------------------------------- drawing */
 /* which saved/live run the top bar's badge and wait line follow: GUARD=1 from the "whispering" step on (the original flow's step 4) */
+/* the open message: the one the front desk clicked (a server action), else the demo's own */
+function curMessage() {
+  return (V && V.messages && S && S.selected && V.messages[S.selected]) || (V && V.message) || null;
+}
+
 function stepGuard() {
   const w = S.steps.findIndex((st) => st.id === "whispering");
   return w >= 0 ? (S.step >= w ? "1" : "0") : "1";
@@ -595,11 +606,13 @@ function avatar(name) {
 }
 
 /* The message list: avatar, sender (bold while unread), subject, a one-line preview, time, label chip, unread dot. */
-function messageList(rows, m, compact) {
+function messageList(rows, m, compact, pick) {
   const list = el("div", "pane mlist" + (compact ? " compact" : ""));
   const items = rows.length ? rows : [{ from: m.from, subject: m.subject, unread: true, selected: true, short: "", preview: "", label: "" }];
   items.forEach((r) => {
-    const row = el("div", "mrow" + (r.selected ? " sel" : "") + (r.unread ? " unread" : ""));
+    const sel = r.id ? r.id === (S.selected || (V.message && V.message.id)) : r.selected;  // the open message follows the server
+    const row = el("div", "mrow" + (sel ? " sel" : "") + (r.unread ? " unread" : "") + (pick && r.id ? " pick" : ""));
+    if (pick && r.id) row.addEventListener("click", () => { history.pushState({ m: r.id }, ""); act("open_message", r.id); });
     const mid = el("div", "who2");
     mid.append(el("div", "nm", r.from), el("div", "sj", r.subject));
     if (r.preview) mid.append(el("div", "pv", r.preview));
@@ -643,12 +656,12 @@ function replyBar(m) {
 
 /* list | reading pane | (steps 3 and 4) the Wisp drawer. `compact` collapses the list to avatars to make room. */
 function inboxPanes(stage, opts) {
-  const { drawer = false, compact = false, r2 = false } = opts || {};
-  const m = V && V.message;
+  const { drawer = false, compact = false, r2 = false, pick = false } = opts || {};
+  const m = curMessage();
   const panes = el("div", "panes" + (drawer ? " p3" : "") + (r2 ? " r2" : ""));
   const reading = el("div", "pane reading");
   if (m) reading.append(readingHead(m));
-  panes.append(messageList((V && V.inbox) || [], m || { from: "?", subject: "" }, compact), reading);
+  panes.append(messageList((V && V.inbox) || [], m || { from: "?", subject: "" }, compact, pick), reading);
   const side = drawer ? el("div", "pane drawer") : null;
   if (side) panes.append(side);
   stage.append(panes);
@@ -728,6 +741,11 @@ function securityView(stage, step) {
   const guard = step.id === "whispering" ? 1 : 0;
   const run = runFor(guard), m = V && V.message;
   const wrap = el("div", "sec");
+  if (S.selected && m && S.selected !== m.id) {  // another message from the list: Wisp has not drafted anything for it
+    wrap.append(el("h2", null, "Lantern Audit · Wisp activity"), el("div", "sub", "Wisp has not drafted a reply to this message. Open the demo message to see its audit log."));
+    stage.append(wrap);
+    return;
+  }
   if (!run || !m || !run.inside) { wrap.append(el("div", "sub", "No run to show.")); stage.append(wrap); return; }
   const ins = run.inside;
   const head = el("div", "sechead"), alertLine = el("div", "alert " + ins.alert.severity);
@@ -908,14 +926,14 @@ const DRAW = {
 
   hook(stage, step) {
     stage_h1(stage, step);
-    const { reading, m } = inboxPanes(stage);
+    const { reading, m } = inboxPanes(stage, { pick: true });
     if (m) reading.append(staffBody(m), replyBar(m));
     stage.append(el("div", "dim", step.caption));
   },
 
   reveal(stage, step) {
     stage_h1(stage, step);
-    const { reading, m } = inboxPanes(stage, { r2: true });
+    const { reading, m } = inboxPanes(stage, { r2: true, pick: true });
     if (!m) return;
     // the reading pane's toggle: Staff view | What Wisp reads, clickable back and forth (a server action, so both screens follow)
     const wisp = !!S.wisp_view, seg = el("div", "seg");
@@ -1260,6 +1278,11 @@ function syncRole() {
 }
 function toggleInside() { act("role"); }  // a click or the I key is the server action; the poll draws the answer
 $("#view-btn").addEventListener("click", toggleInside);
+/* Back and Forward walk the messages the person opened, as they would in any mail client */
+window.addEventListener("popstate", (e) => {
+  const id = e.state && e.state.m ? e.state.m : (V && V.message && V.message.id);
+  if (id) act("open_message", id);
+});
 $("#who").addEventListener("click", toggleInside);
 
 document.addEventListener("keydown", (e) => {
