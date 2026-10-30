@@ -59,6 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m dashboard", description="The Haunted Inbox demo dashboard.")
     parser.add_argument("--host", default="127.0.0.1", help="interface to bind (default 127.0.0.1 only)")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--stage", action="store_true",
+                        help="enable the presenter's stage buttons (projector switch, fixed terminal commands); "
+                             "loopback only, never on a shared or tunnelled instance")
     parser.add_argument("--replay-only", action="store_true", help="never call Ollama; every badge says REPLAY")
     parser.add_argument("--random", action="store_true",
                         help="a variant picked at random from the tested pool (runs/pool/); R re-rolls it")
@@ -87,6 +90,10 @@ def main(argv: list[str] | None = None) -> int:
                                      host=args.ollama_host, cwd=ROOT),
         random_mode=args.random, practice=args.practice,
     )
+    if args.stage and args.host not in ("127.0.0.1", "localhost", "::1"):
+        print("--stage only works on a loopback host (127.0.0.1); refusing to expose stage actions", file=sys.stderr)
+        return 2
+    state.stage_enabled = bool(args.stage)
     if not replay_only:  # /sandbox runs a stranger's text on the real model: only when there is one
         from ghostreply.harness import OllamaModel
 

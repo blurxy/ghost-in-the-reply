@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Raw demo: stock Gemma 4 through Ollama, plain terminal, nothing hidden. Run from the repo root:
+#   bash demo/raw/demo.sh 0    `ollama ps`: the stock model, loaded on this laptop's GPU
 #   bash demo/raw/demo.sh 1    plain `ollama run`: the model reads the raw message and drafts a reply
 #   bash demo/raw/demo.sh 2    guard off, raw curl to /api/chat with three tools: look at tool_calls
 #   bash demo/raw/demo.sh 3    guard on, raw curl: no tools, format= schema: look at the only output
@@ -17,6 +18,10 @@ pause() { [ "${STEP:-}" = all ] && { read -r -p $'\n[enter for the next step] ' 
 
 prep() { GHOST_MODEL="$MODEL" "$PY" demo/raw/make_requests.py msg-004 >/dev/null; }
 
+step0() {
+  say "ollama ps"
+  ollama ps
+}
 step1() {
   prep
   say "ollama run $MODEL --think=false \"\$(cat $OUT/chat-prompt.txt)\""
@@ -50,7 +55,7 @@ step5() {
 
 STEP="${1:-all}"
 case "$STEP" in
-  1) step1 ;; 2) step2 ;; 3) step3 ;; 4) step4 ;; 5) step5 ;;
+  0) step0 ;; 1) step1 ;; 2) step2 ;; 3) step3 ;; 4) step4 ;; 5) step5 ;;
   all) step1; pause; step2; pause; step3; pause; step4; pause; step5 ;;
-  *) echo "usage: bash demo/raw/demo.sh 1|2|3|4|5|all" >&2; exit 2 ;;
+  *) echo "usage: bash demo/raw/demo.sh 0|1|2|3|4|5|all" >&2; exit 2 ;;
 esac

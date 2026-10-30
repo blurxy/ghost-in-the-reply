@@ -15,6 +15,7 @@ import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from . import stage
 from .sandbox import MAX_BODY as SANDBOX_MAX_BODY
 from .sandbox import NEEDS_MODEL
 from .state import ACTIONS, DashboardState
@@ -95,6 +96,23 @@ class Handler(BaseHTTPRequestHandler):
             except (BrokenPipeError, ConnectionResetError):
                 pass
             except Exception as exc:  # whatever the sandbox hits, the demo server keeps serving
+                self._json({"error": type(exc).__name__}, 500)
+            return
+        if route == "/api/stage":  # only with --stage; see dashboard/stage.py for the allowlist and its rules
+            if not getattr(self.state, "stage_enabled", False):
+                self._send(404, b"not found", "text/plain; charset=utf-8")
+                return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(length)) if 0 < length <= MAX_BODY else None
+            except (ValueError, json.JSONDecodeError):
+                body = None
+            try:
+                code, payload = stage.handle(body, self.headers)
+                self._json(payload, code)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            except Exception as exc:  # a failing hyprctl/tmux can never take the demo server down
                 self._json({"error": type(exc).__name__}, 500)
             return
         if route != "/api/action":

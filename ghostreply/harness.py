@@ -201,7 +201,8 @@ def _new_run(message: dict, guard: bool, model: Model, hospital: dict) -> dict:
 
 
 def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = None,
-                patients: dict | None = None, hospital: dict | None = None) -> dict:
+                patients: dict | None = None, hospital: dict | None = None, system: str | None = None,
+                prompt=None) -> dict:
     """Run one inbox message through Wisp and return its run log. Never raises for model failures."""
     inbox = load_inbox() if inbox is None else inbox
     patients = load_patients() if patients is None else patients
@@ -227,7 +228,7 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
         if guard:
             run_guarded(ctx, model, run)
         else:
-            run_naive(ctx, model, run)
+            run_naive(ctx, model, run, system=system, prompt=prompt)
     except (ModelError, GuardUnavailable) as e:
         run["status"] = "error"
         run["error"] = str(e)
@@ -251,12 +252,12 @@ def _naive_prompt(message: dict) -> str:
     )
 
 
-def run_naive(ctx: ToolContext, model: Model, run: dict) -> None:
+def run_naive(ctx: ToolContext, model: Model, run: dict, *, system: str | None = None, prompt=None) -> None:
     """GUARD=0: a plain tool loop over the raw message. Ends at draft_reply, at the call budget, or when the model
     stops calling tools after one correction."""
     messages: list[dict] = [
-        {"role": "system", "content": NAIVE_SYSTEM},
-        {"role": "user", "content": _naive_prompt(ctx.inbox[ctx.message_id])},
+        {"role": "system", "content": system or NAIVE_SYSTEM},  # the patient chat passes CHAT_SYSTEM; defaults unchanged
+        {"role": "user", "content": (prompt or _naive_prompt)(ctx.inbox[ctx.message_id])},
     ]
     run["transcript"] = messages
     calls = 0

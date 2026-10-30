@@ -15,3 +15,5 @@ runs/*
 # Backup demo video for the B key; never committed (the release carries a copy)
 dashboard/backup.mp4
 demo/raw/out/
+demo/raw/stage.env
+!runs/chat/
