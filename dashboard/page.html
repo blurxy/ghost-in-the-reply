@@ -44,6 +44,55 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 #rail .wisp{margin-top:auto;display:flex;align-items:center;gap:.6em;padding:.6em .7em;border:2px solid var(--line);border-radius:12px;color:var(--fg);font-weight:700;line-height:1.2}
 #rail .wisp i{width:.7em;height:.7em;border-radius:50%;background:var(--grn);box-shadow:0 0 10px var(--grn);flex:none}
 #rail .wisp.on{border-color:var(--grn)}
+/* who is looking: the chip and its button; the button's width is reserved for both labels so nothing shifts */
+.who{cursor:pointer}
+.viewbtn{flex:none;min-width:13.2em;font:inherit;font-size:.9em;font-weight:700;color:var(--fg);background:#1d1d2b;border:2px solid var(--line);border-radius:10px;padding:.35em .8em;cursor:pointer;white-space:nowrap}
+.viewbtn:hover,.viewbtn:focus-visible{border-color:var(--mag);outline:none}
+body.security .viewbtn{border-color:var(--cyn);color:var(--cyn)}
+@media (max-width:1500px){  /* a 1280x720 screen */
+  #appbar .search{display:none}#dots{display:none}  /* the top bar: the badge, the button and the chip keep their room */
+  #rail{padding:1.6vh .5vw}#rail .item{padding:.4em .45em;gap:.45em}  /* "New messages" and its unread count fit the rail */
+}
+/* the Security team's view (Lantern Audit) */
+.sec{flex:1;display:flex;flex-direction:column;gap:1.2vh;min-height:0}
+.sechead{display:flex;flex-direction:column;gap:.6vh}
+.sechead h2{margin:0;font-size:1.2em;color:var(--fg);text-transform:none;letter-spacing:0}
+.alert{display:flex;align-items:flex-start;gap:.8em;border:2px solid var(--line);border-radius:12px;padding:.7vh 1vw;background:var(--card);font-weight:700}
+.alert .sev{flex:none;border-radius:6px;padding:0 .6em;font-weight:900;color:#000;background:var(--cyn)}
+.alert.HIGH{border-color:var(--red)} .alert.HIGH .sev{background:var(--red);color:#fff}
+.secgrid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:1.1vw}
+.secgrid .col{display:flex;flex-direction:column;gap:1vh;min-height:0;min-width:0}
+.sec .pane{padding:1vh 1vw;gap:.8vh}
+.sec .rsub{font-size:1.05em}
+.sec .rbody{flex:0 1 auto}
+.audit{width:100%;border-collapse:collapse;font-size:.82em}
+.audit th{color:var(--dim);font-weight:700;text-align:left;padding:.2em .5em;border-bottom:2px solid var(--line);white-space:nowrap}
+.audit td{padding:.25em .5em;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.audit td.act{font-family:var(--mono)}
+.audit td:nth-child(1),.audit td:nth-child(5),.audit td:nth-child(6){white-space:nowrap}
+.copy{align-self:flex-start}
+.sec .vis{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.sec .ghost .gt{font-size:.88em}
+.sec .col > .reading{flex:1 1 auto;min-height:0;overflow:hidden}
+.sec .col > .composer{flex:0 0 auto}
+.inspector{flex:1;min-height:0;display:flex;flex-direction:column;gap:.8vh}
+.tabs{display:flex;gap:.4em;flex-wrap:wrap}
+.tab,.pick,.copy{font:inherit;font-size:.82em;font-weight:700;color:var(--dim);background:transparent;border:2px solid var(--line);border-radius:8px;padding:.2em .8em;cursor:pointer}
+.tab.on,.pick.on{color:#000;background:var(--cyn);border-color:var(--cyn)}
+.tabpanel{flex:1;min-height:0;display:flex;flex-direction:column;gap:.6vh}
+.picks{display:flex;gap:.4em}
+.raw{flex:1;min-height:0;margin:0;overflow:auto;white-space:pre;user-select:text;font-family:var(--mono);font-size:.74em;line-height:1.35;background:#0b0b12;border:2px solid var(--line);border-radius:8px;padding:.6vh .8vw}
+.rec{font-weight:700}
+.vrow{display:flex;gap:1em}.vrow b{min-width:12em;color:var(--dim)}
+.toolrow{display:flex;gap:.5em;flex-wrap:wrap;align-items:center}
+@media (max-width:1500px){  /* the Security view on a 1280x720 screen: the hidden text, the draft and the raw JSON all show in full */
+  .sec .vis,.sec .reading > .dim,.sec .tabpanel > .dim{display:none}
+  .secgrid{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+  .audit{font-size:.7em}
+  .audit th:nth-child(2),.audit td:nth-child(2){display:none}  /* the actor is always Wisp; the table keeps its other five columns */
+  .tab,.pick,.copy{font-size:.72em;padding:.12em .55em}
+  .sec .pane{padding:.8vh .8vw}
+}
 .av{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;color:#000;font-weight:800;flex:none;width:2.1em;height:2.1em;font-size:.9em}
 #dots{display:flex;gap:.7vw}
 #dots i{width:1.1vw;min-width:14px;height:1.1vw;min-height:14px;border-radius:50%;background:var(--line)}
@@ -274,7 +323,8 @@ h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;lette
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg>
         <span>Search messages</span>
       </div>
-      <div class="who"><span class="av" style="background:#9ad1ff">JR</span><div class="wn">J. Rivera<small>Front desk</small></div></div>
+      <div class="who" id="who" title="Switch who is looking (key I)"><span class="av" id="who-av" style="background:#9ad1ff">JR</span><div class="wn"><span id="who-name">J. Rivera</span><small id="who-role">Front desk</small></div></div>
+      <button type="button" id="view-btn" class="viewbtn">View as: Security team</button>
       <div id="top"><div id="dots"></div><div id="badge" class="replay">REPLAY</div></div>
     </div>
     <div id="dock"></div>
@@ -330,7 +380,8 @@ const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 let S = null, V = null, offset = 0, timers = [], autoTimer = null, lastWarnKey = "";
-const at = (ms, fn) => timers.push(setTimeout(fn, FINAL ? 0 : ms));
+let INSIDE = false, INSTANT = false;  // INSIDE: the Security team is looking; INSTANT: a redraw that skips every animation (the switch keeps the step)
+const at = (ms, fn) => timers.push(setTimeout(fn, FINAL || INSTANT ? 0 : ms));
 const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 const reveal = (node) => node && node.classList.add("in");
 
@@ -402,6 +453,7 @@ function drawStep() {
     stage.append(el("h1", null, "Saved runs missing"), el("div", "sub", "Presenter: check the log."));  // the detail is on the presenter view
     return;
   }
+  if (insideNow()) return securityView(stage, step);  // the Security team's view of this screen
   (DRAW[step.id] || (() => {}))(stage, step);
 }
 
@@ -562,6 +614,118 @@ function inboxPanes(stage, opts) {
   if (side) panes.append(side);
   stage.append(panes);
   return { panes, reading, side, m };
+}
+
+/* ---- the Security team's view ("Lantern Audit · Wisp activity"): everything here comes from the run log's `inside` ---- */
+const SECURITY_STEPS = ["hook", "reveal", "possessed", "whispering"];
+function insideNow() {
+  return INSIDE && !!S && SECURITY_STEPS.includes(S.steps[S.step].id) && !(S.practice && S.practice.phase !== "run");
+}
+
+function auditTable(rows) {
+  const table = el("table", "audit");
+  const head = el("tr");
+  ["Time", "Actor", "Action", "Record", "Linked to sender", "Result"].forEach((h) => head.append(el("th", null, h)));
+  table.append(head);
+  rows.forEach((r) => {
+    const tr = el("tr");
+    const linked = el("td", r.linked === true ? "ok" : r.linked === false ? "bad" : "dim", r.linked === true ? "yes" : r.linked === false ? "no" : "");
+    const result = el("td", r.result === "allowed" ? "" : "bad", r.result);
+    const action = el("td", "act", r.action);
+    tr.append(el("td", null, r.time), el("td", null, r.actor), action, el("td", null, r.record), linked, result);
+    table.append(tr);
+  });
+  return table;
+}
+
+/* Four tabs: Model request, Model response (raw JSON, selectable, with a copy button), Records touched, Verdict. */
+function inspector(ins) {
+  const box = el("div", "inspector"), tabs = el("div", "tabs"), panel = el("div", "tabpanel");
+  const names = [["request", "Model request"], ["response", "Model response"], ["records", "Records touched"], ["verdict", "Verdict"]];
+  let tab = "request", pick = 0;
+  const draw = () => {
+    tabs.replaceChildren(...names.map(([k, label]) => {
+      const b = el("button", "tab" + (k === tab ? " on" : ""), label);
+      b.type = "button";
+      b.onclick = () => { tab = k; pick = 0; draw(); };
+      return b;
+    }));
+    panel.replaceChildren();
+    if (tab === "request" || tab === "response") {
+      const items = ins[tab];
+      const row = el("div", "toolrow");  // the request picker (when there is more than one) and the copy button share a row
+      if (items.length > 1) {
+        items.forEach((it, i) => { const b = el("button", "pick" + (i === pick ? " on" : ""), it.label); b.type = "button"; b.onclick = () => { pick = i; draw(); }; row.append(b); });
+      }
+      const cur = items[pick] || { json: "(nothing logged)", note: "" };
+      if (cur.note) panel.append(el("div", "dim", cur.note));
+      const pre = el("pre", "raw", cur.json);
+      const copy = el("button", "copy", "Copy raw JSON");
+      copy.type = "button";
+      copy.onclick = async () => {
+        try { await navigator.clipboard.writeText(cur.json); copy.textContent = "Copied"; }
+        catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); copy.textContent = "Selected: press Ctrl+C"; }
+        setTimeout(() => { copy.textContent = "Copy raw JSON"; }, 1600);
+      };
+      row.append(copy);
+      panel.append(row, pre);
+    } else if (tab === "records") {
+      ins.records.forEach((r) => panel.append(el("div", "rec " + (r.sender ? "ok" : "bad"),
+        (r.sender ? "✓ " : "✗ ") + r.id + (r.kind === "message" ? " (message)" : " (chart)") + (r.sender ? ": belongs to the sender" : ": not linked to this message"))));
+      if (!ins.records.length) panel.append(el("div", "dim", "No records touched."));
+    } else {
+      const v = ins.verdict;
+      panel.append(el("div", "rsub", v.headline), el("div", "dim", v.mode));
+      if (v.finding) panel.append(el("div", "bad", v.finding));
+      v.rows.forEach(([k, val]) => { const row = el("div", "vrow"); row.append(el("b", null, k), el("span", null, val)); panel.append(row); });
+    }
+  };
+  draw();
+  box.append(tabs, panel);
+  return box;
+}
+
+function securityView(stage, step) {
+  const guard = step.id === "whispering" ? 1 : 0;
+  const run = runFor(guard), m = V && V.message;
+  const wrap = el("div", "sec");
+  if (!run || !m || !run.inside) { wrap.append(el("div", "sub", "No run to show.")); stage.append(wrap); return; }
+  const ins = run.inside;
+  const head = el("div", "sechead"), alertLine = el("div", "alert " + ins.alert.severity);
+  alertLine.append(el("span", "sev", ins.alert.severity), el("span", null, ins.alert.text));
+  head.append(el("h2", null, "Lantern Audit · Wisp activity"), alertLine);
+  const grid = el("div", "secgrid");
+  // left: the message with its hidden text, and the draft as it stands (leaks marked)
+  const left = el("div", "col"), msg = el("div", "pane reading");
+  msg.append(el("div", "rsub", m.subject), el("div", "dim", m.from + " · " + m.received));
+  // the visible text is shortened to three lines; the hidden text is shown whole, labelled
+  const vis = el("div", "body vis"), hidden = el("div", "body");
+  let seen = false;
+  m.seance.forEach((sg) => {
+    const into = seen ? hidden : vis;
+    if (sg.t === "text") into.append(document.createTextNode(sg.s));
+    else if (sg.t === "break") into.append(document.createTextNode("\n"));
+    else if (sg.t === "mark") { seen = true; hidden.append(el("span", "mark", "⟨" + sg.s + "⟩")); }
+    else {
+      seen = true;
+      const g = el("div", "ghost in");
+      g.append(el("span", "gl", (guard ? "Removed before model · " : "") + sg.label), el("span", "gt", sg.s));
+      hidden.append(g);
+    }
+  });
+  const rb = el("div", "rbody");
+  rb.append(vis, hidden);
+  msg.append(rb);
+  const draft = draftCard(run, guard ? "Reply from the hospital template" : "Review Wisp's draft");
+  draft.classList.add("composer", "lit", "in");
+  left.append(msg, draft);
+  // right: the audit log, then the inspector
+  const right = el("div", "col"), log = el("div", "pane");
+  log.append(el("div", "label", "Audit log"), auditTable(ins.audit));
+  right.append(log, inspector(ins));
+  grid.append(left, right);
+  wrap.append(head, grid);
+  stage.append(wrap);
 }
 
 /* The splash and the signed-out card sit over the dimmed app. */
@@ -940,10 +1104,36 @@ function backupVideo() {
   box.replaceChildren(v); box.style.display = "block";
 }
 
+/* Who is looking: Front desk (the ordinary inbox) or the Security team (Lantern Audit). Key I, the button, or the chip.
+   Ignored while the focus is in a text field. The switch redraws the same step at once, so the step, the mode and the
+   replay position are kept. */
+function typingNow() {
+  const t = document.activeElement;
+  return !!t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName));
+}
+function syncRole() {
+  document.body.classList.toggle("security", INSIDE);
+  $("#who-name").textContent = INSIDE ? "Security team" : "J. Rivera";
+  $("#who-role").textContent = INSIDE ? "Audit view" : "Front desk";
+  $("#who-av").textContent = INSIDE ? "ST" : "JR";
+  $("#who-av").style.background = INSIDE ? "#00e5ff" : "#9ad1ff";
+  $("#view-btn").textContent = INSIDE ? "View as: Front desk" : "View as: Security team";
+}
+function toggleInside() {
+  INSIDE = !INSIDE;
+  syncRole();
+  if (!S) return;
+  INSTANT = true;
+  try { render(); chrome(); } finally { INSTANT = false; }
+}
+$("#view-btn").addEventListener("click", toggleInside);
+$("#who").addEventListener("click", toggleInside);
+
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
-  if (k === " " && S && S.practice && S.practice.phase === "qa") act("reveal");  // practice questions: Space shows the answer
+  if ((k === "i" || k === "I") && !typingNow()) toggleInside();
+  else if (k === " " && S && S.practice && S.practice.phase === "qa") act("reveal");  // practice questions: Space shows the answer
   else if (k === "ArrowRight" || k === " " || k === "PageDown") act("next");
   else if (k === "ArrowLeft" || k === "PageUp") act("back");
   else if (k === "r" || k === "R") act("rerun");

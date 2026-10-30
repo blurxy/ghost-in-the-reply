@@ -173,6 +173,54 @@ def test_the_routing_and_provenance_lines_come_from_the_message():
     assert inside.message_context(None)["pool"] == "General" and "provenance" not in inside.message_context({})
 
 
+# ----------------------------------------------------------------- layer 2: the role switch on the page (structure)
+
+PAGE_TEXT = (ROOT / "dashboard" / "page.html").read_text(encoding="utf-8")
+
+
+def test_the_role_switch_has_its_button_chip_labels_and_the_audit_view_copy():
+    assert 'id="view-btn"' in PAGE_TEXT and 'id="who"' in PAGE_TEXT
+    for words in ("View as: Security team", "View as: Front desk", "Security team", "Audit view", "J. Rivera", "Front desk",
+                  "Lantern Audit · Wisp activity", "Model request", "Model response", "Records touched", "Verdict", "Copy raw JSON",
+                  "Audit log", "HIGH"):
+        assert words in PAGE_TEXT, words
+    css = PAGE_TEXT.split("</style>")[0]
+    assert ".viewbtn{flex:none;min-width:" in css  # the button's width is reserved for both labels: nothing shifts
+
+
+def test_key_i_is_ignored_while_typing_and_the_switch_keeps_the_step():
+    handler = PAGE_TEXT.split('document.addEventListener("keydown"')[1].split("});")[0]
+    assert '(k === "i" || k === "I") && !typingNow()' in handler
+    typing = PAGE_TEXT.split("function typingNow()")[1].split("\n}\n")[0]
+    assert "isContentEditable" in typing and "input|textarea|select" in typing
+    toggle = PAGE_TEXT.split("function toggleInside()")[1].split("\n}\n")[0]
+    assert "INSTANT = true" in toggle and "render()" in toggle and "INSTANT = false" in toggle  # same step, redrawn at once
+    assert "FINAL || INSTANT ? 0 : ms" in PAGE_TEXT  # an instant redraw skips every animation timer
+
+
+def test_the_role_persists_across_steps():
+    # INSIDE is page state: it is set only by the declaration and by the switch, never by a step change or a redraw
+    assert PAGE_TEXT.count("INSIDE = ") == 2 and "INSIDE = !INSIDE" in PAGE_TEXT and "let INSIDE = false" in PAGE_TEXT
+    assert 'if (insideNow()) return securityView(stage, step);' in PAGE_TEXT.split("function drawStep()")[1].split("\n}\n")[0]
+    assert 'const SECURITY_STEPS = ["hook", "reveal", "possessed", "whispering"]' in PAGE_TEXT
+
+
+def test_the_raw_json_viewer_shows_the_text_it_was_given_and_nothing_is_parsed_as_html():
+    viewer = PAGE_TEXT.split("function inspector(ins)")[1].split("\n}\n")[0]
+    assert 'el("pre", "raw", cur.json)' in viewer and "innerHTML" not in PAGE_TEXT
+    assert ".raw{" in PAGE_TEXT and "user-select:text" in PAGE_TEXT and "overflow:auto" in PAGE_TEXT.split(".raw{")[1].split("}")[0]
+
+
+def test_the_static_site_gets_the_switch_too_with_replay_data_only():
+    from dashboard import export_static as ex
+
+    assert "i" in ex.KEYS and "I" in ex.KEYS
+    assert 'data-k="i"' in ex.index_html("Haunted Inbox", "x")
+    stage = ex.stage_html(PAGE_TEXT, {"n": 1}, {"runs": {}})
+    keys = json.loads(re.search(r"var KEYS = (\[.*?\]);", stage).group(1))
+    assert "i" in keys and "b" not in keys and "l" not in keys  # the switch yes; no backup video, no live toggle
+
+
 def test_the_state_hands_the_page_the_banner_and_the_routing_lines():
     state = DashboardState(DEMO, live=None, mode="replay", clock=Clock(1000.0))
     message = state.views()["message"]
