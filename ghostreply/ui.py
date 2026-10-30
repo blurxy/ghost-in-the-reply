@@ -14,6 +14,7 @@ import html
 import json
 import re
 from typing import ContextManager
+from urllib.parse import urlparse
 
 from rich import box
 from rich.align import Align
@@ -91,14 +92,27 @@ def banner(guard: int) -> RenderableType:
 
 def _header(run: dict) -> Text:
     message = _as_dict(run.get("message"))
+    return _line("  ·  ".join(["Hollowveil Memorial Hospital", "Wisp", str(message.get("id", "?"))]), "dim")
+
+
+def _trace_meta(run: dict) -> str | None:
+    """The Gemma facts for the Agent trace subtitle: model, where it runs, calls, speed, time."""
     model = _as_dict(run.get("model"))
-    parts = ["Hollowveil Memorial Hospital", "Wisp", str(message.get("id", "?"))]
+    turns = [t for t in _as_list(run.get("turns")) if isinstance(t, dict)]
+    parts = []
     if model.get("name"):
-        parts.append(str(model["name"]))
+        host = urlparse(str(model.get("host") or "")).hostname or ""
+        where = "" if not host else (" on this machine" if host in ("localhost", "127.0.0.1", "::1") else f" on {host}")
+        parts.append(f"{model['name']}{where}")
+    if turns:
+        parts.append(f"{len(turns)} model call{'s' if len(turns) != 1 else ''}")
+    rates = [t["tokens_per_s"] for t in turns if isinstance(t.get("tokens_per_s"), (int, float)) and t["tokens_per_s"] > 0]
+    if rates:
+        parts.append(f"{sum(rates) / len(rates):.1f} tok/s")
     ms = run.get("duration_ms")
-    if isinstance(ms, (int, float)) and ms:
+    if isinstance(ms, (int, float)) and ms > 0:
         parts.append(f"{ms / 1000:.1f} s")
-    return _line("  ·  ".join(parts), "dim")
+    return "  ·  ".join(parts) or None
 
 
 # ------------------------------------------------------------------------------------------- staff view
@@ -170,6 +184,26 @@ def _is_block(tag_text: str) -> bool:
     return any(name.lower() in BLOCK_TAGS for name in re.findall(r"</?\s*([A-Za-z][A-Za-z0-9]*)", tag_text))
 
 
+_TOOL_CALL = re.compile(r"\b[a-z]+_[a-z_]+\((?:\"[^\"]*\"|'[^']*'|[^()]*)\)")
+_PHONE = re.compile(r"\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}")
+_LINK = re.compile(r"https?://\S+|www\.\S+", re.I)
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+
+
+def _signals(text: str) -> list[str]:
+    """What a ghost's words contain that matters for the two harms. Plain pattern checks, not a judgement."""
+    found = []
+    if _TOOL_CALL.search(text):
+        found.append("a tool call")
+    if _PHONE.search(text):
+        found.append("a phone number")
+    if _LINK.search(text):
+        found.append("a link")
+    if _EMAIL.search(text):
+        found.append("an email address")
+    return found
+
+
 def _append_ghost(out: Text, span: dict) -> None:
     label, shown = describe(span)
     shown = _display(shown, 600).strip()
@@ -180,6 +214,10 @@ def _append_ghost(out: Text, span: dict) -> None:
         out.append("\n")
         out.append(f" {shown or '(nothing inside)'} ", GLOW)
         out.append("\n")
+        signals = _signals(shown)
+        if signals:
+            out.append(f" → contains {', '.join(signals)}", "bold #ffb3f8")
+            out.append("\n")
     else:
         out.append(f"⟨{label.split(' · ', 1)[-1]}⟩", GLOW)
 
@@ -213,7 +251,8 @@ def _seance_text(original: str, removed: list[dict]) -> Text:
     return out
 
 
-def seance_view(message: dict, removed: list[dict], *, subject_removed: list[dict] | None = None) -> RenderableType:
+def seance_view(message: dict, removed: list[dict], *, subject_removed: list[dict] | None = None,
+                guard: int | None = None) -> RenderableType:
     message = _as_dict(message)
     removed = [s for s in _as_list(removed) if isinstance(s, dict)]
     subject_removed = [s for s in _as_list(subject_removed) if isinstance(s, dict)]
@@ -227,7 +266,9 @@ def seance_view(message: dict, removed: list[dict], *, subject_removed: list[dic
     body.append_text(_seance_text(str(message.get("body_html", "")), removed))
     body.rstrip()
     if ghosts:
-        note = Text("Glowing = hidden from people, readable by the model.", style="dim")
+        what = ("The Warding Circle strips it before Wisp reads." if guard == 1
+                else "Wisp reads it anyway." if guard == 0 else "The model may read it.")
+        note = Text("Glowing = hidden from people. " + what, style="dim")
         subtitle = Text(f"{ghosts} hidden {'span' if ghosts == 1 else 'spans'} found", style="bold #ff3df0")
     else:
         note = Text("No hidden text found in this message.", style="#00e676")
@@ -255,7 +296,8 @@ def clean_view(run: dict) -> RenderableType:
 
 def _value(v: object) -> str:
     if isinstance(v, str):
-        v = v if len(v) <= 40 else v[:40] + "…"
+        v = " ".join(v.split())  # a draft's newlines would show up as \n
+        v = v if len(v) <= 28 else v[:28] + "…"
         return json.dumps(v, ensure_ascii=False)
     return repr(v)
 
@@ -268,37 +310,61 @@ def _call(tool: object, args: object) -> str:
 
 
 def trace_view(events: list[dict] | None, *, sender_id: str | None = None,
-               message_id: str | None = None) -> RenderableType:
-    events = [e for e in (events or []) if isinstance(e, dict)]
+               message_id: str | None = None, meta: str | None = None) -> RenderableType:
+    events = [e for e in _as_list(events) if isinstance(e, dict)]
     title = Text("Agent trace", style="bold #00e5ff")
+    subtitle = Text(_display(meta, 160).replace("\n", " "), style="dim") if meta else None
     if not events:
         return Panel(Text("No tool calls. Under the Warding Circle, code does the reading.", style="dim"),
-                     title=title, title_align="left", border_style="#00e5ff", box=box.ROUNDED,
-                     padding=(0, 2))
+                     title=title, title_align="left", subtitle=subtitle, subtitle_align="right",
+                     border_style="#00e5ff", box=box.ROUNDED, padding=(0, 2))
     table = Table(box=None, expand=True, pad_edge=False, header_style="bold #00e5ff")
     table.add_column("#", justify="right", no_wrap=True)
     table.add_column("Wisp's call", overflow="fold")
     table.add_column("Result", no_wrap=True)
     table.add_column("Touched", overflow="fold")
+    foreign_charts: set[str] = set()
+    foreign_messages: set[str] = set()
+    refused = 0
     for n, event in enumerate(events, 1):
         allowed = bool(event.get("allowed"))
+        refused += not allowed
         result = Text("✓ allowed", style="#00e676") if allowed else Text("✗ refused", style="bold #ff1744")
         touched = Text()
         for pid in _as_list(event.get("patients_touched")):
-            foreign = sender_id is not None and pid != sender_id
-            touched.append(_display(f"chart {pid}" + (" (not the sender)" if foreign else "") + "  "),
-                           "bold #ff1744" if foreign else "")
+            if sender_id is None:
+                touched.append(_display(f"chart {pid}  "))
+            elif pid == sender_id:
+                touched.append(_display(f"chart {pid} (the sender)  "), "#00e676")
+            else:
+                foreign_charts.add(str(pid))
+                touched.append(_display(f"chart {pid} (not the sender)  "), "bold #ff1744")
         for mid in _as_list(event.get("messages_touched")):
-            foreign = message_id is not None and mid != message_id
-            touched.append(_display(f"message {mid}" + (" (not this one)" if foreign else "") + "  "),
-                           "bold #ff1744" if foreign else "")
+            if message_id is None:
+                touched.append(_display(f"message {mid}  "))
+            elif mid == message_id:
+                touched.append(_display(f"message {mid} (this message)  "), "#00e676")
+            else:
+                foreign_messages.add(str(mid))
+                touched.append(_display(f"message {mid} (not this one)  "), "bold #ff1744")
         note = event.get("note")
         if note:
             touched.append(_display(note, 120), "dim italic")
         table.add_row(Text(str(n)), _line(_call(event.get("tool"), event.get("args")), "bold", 160),
                       result, touched)
-    return Panel(table, title=title, title_align="left", border_style="#00e5ff", box=box.ROUNDED,
-                 padding=(0, 2))
+    parts: list[RenderableType] = [table]
+    if sender_id is not None:  # the one line a judge can read from the back of the room
+        verdict = Text()
+        if foreign_charts or foreign_messages:
+            reached = [f"chart {c}" for c in sorted(foreign_charts)] + [f"message {m}" for m in sorted(foreign_messages)]
+            verdict.append("✗ Wisp reached beyond this message: " + _display(", ".join(reached), 120), "bold #ff1744")
+        else:
+            verdict.append("✓ Every call stayed inside the sender's chart and this message.", "bold #00e676")
+        if refused:
+            verdict.append(f"   {refused} call{'s' if refused != 1 else ''} refused", "bold #ffd600")
+        parts += [Text(""), verdict]
+    return Panel(Group(*parts), title=title, title_align="left", subtitle=subtitle, subtitle_align="right",
+                 border_style="#00e5ff", box=box.ROUNDED, padding=(0, 2))
 
 
 # -------------------------------------------------------------------------------------------- the draft
@@ -471,10 +537,12 @@ def show_run(run: dict, console: Console | None = None, *, pause_before_seance: 
     subject_removed = _as_dict(info.get("subject")).get("removed")
     if subject_removed is None:
         subject_removed = strip(str(message.get("subject", "")))[1]
-    _emit(console, "seance view", lambda: seance_view(message, removed, subject_removed=subject_removed))
+    _emit(console, "seance view",
+          lambda: seance_view(message, removed, subject_removed=subject_removed, guard=guard))
     if guard and show_clean:
         _emit(console, "clean view", lambda: clean_view(run))
     _emit(console, "Agent trace", lambda: trace_view(
-        run.get("events"), sender_id=message.get("sender_patient_id"), message_id=message.get("id")))
+        run.get("events"), sender_id=message.get("sender_patient_id"), message_id=message.get("id"),
+        meta=_trace_meta(run)))
     _emit(console, "draft", lambda: draft_view(run))
     _emit(console, "meter", lambda: meter(run.get("verdict")))
