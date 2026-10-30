@@ -40,7 +40,7 @@ body.security #bar{border-bottom-color:var(--brand)}
 .chatpanel{width:min(70em,100%);min-height:0;display:flex;flex-direction:column;background:var(--surface);border:2px solid var(--border);border-radius:14px;overflow:hidden}
 .panelhead{padding:.5em 1em;border-bottom:2px solid var(--border);font-weight:700;font-size:1.1em;display:flex;align-items:baseline;gap:.6em;flex-wrap:wrap}
 .panelhead span{color:var(--muted);font-weight:400;font-size:.8em}
-#thread{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:.7em;padding:.8em 1em}
+#thread{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:.5em;padding:.6em 1em}
 .empty{color:var(--muted);text-align:center;padding:1em}
 .row{display:flex;flex-direction:column;gap:.2em;min-width:0}
 .row.me{align-items:flex-end}
@@ -50,7 +50,8 @@ body.security #bar{border-bottom-color:var(--brand)}
 .me .bubble{background:var(--selected);border-color:#9CC5D3;border-bottom-right-radius:4px}
 .wisp .bubble{background:var(--surface);border-bottom-left-radius:4px}
 .bubble p{margin:0}
-.bubble p + p{margin-top:.3em}
+.bubble p + p{margin-top:.2em}
+.whorow{display:flex;align-items:center;gap:.7em;flex-wrap:wrap}
 .bubble .pasted{display:block;font-size:.72em;color:var(--muted);font-weight:600;margin-bottom:.2em}
 .bubble .more{color:var(--muted);text-decoration:underline;font-size:.85em}
 .badge{display:inline-flex;align-items:center;gap:.45em;font-size:.72em;font-weight:700;padding:.05em .7em;border-radius:999px;border:2px solid;white-space:nowrap}
@@ -230,8 +231,9 @@ function patientRow(t) {
 }
 
 function wispRow(t) {
-  const row = el("div", "row wisp");
-  row.append(el("div", "who", "Wisp · Hollowveil's virtual assistant"));
+  const row = el("div", "row wisp"), top = el("div", "whorow");
+  top.append(el("div", "who", "Wisp · Hollowveil's virtual assistant"));
+  row.append(top);
   const b = el("div", "bubble");
   if (t.state === "typing") {
     const ty = el("div", "typing");
@@ -243,10 +245,22 @@ function wispRow(t) {
   if (t.reply) b.append(bubbleText(t.reply));
   else b.append(el("p", null, t.state === "timed out" ? "timed out" : "Wisp could not answer."));
   row.append(b);
-  if (t.badge) row.append(el("span", "badge " + (t.badge.source === "live" ? "live" : t.badge.source === "replay" ? "replay" : "none"), t.badge.text));
+  if (t.badge) top.append(el("span", "badge " + (t.badge.source === "live" ? "live" : t.badge.source === "replay" ? "replay" : "none"), t.badge.text));
   if (t.note) row.append(el("div", "note", t.note));
   return row;
 }
+
+/* A long answer must never push the question off the top: shrink the thread's text, a step at a time, until both bubbles fit. */
+function fitThread() {
+  const t = $("#thread");
+  if (!t) return;
+  let scale = 1;
+  // bottom-aligned content that is too tall overflows upward, where scrollHeight cannot see it: compare the first bubble's top instead
+  const clipped = () => !!t.firstElementChild && t.firstElementChild.getBoundingClientRect().top < t.getBoundingClientRect().top - 1;
+  t.style.fontSize = "1em";
+  while (clipped() && scale > 0.6) { scale -= 0.04; t.style.fontSize = scale.toFixed(2) + "em"; }
+}
+window.addEventListener("resize", fitThread);
 
 function drawChat(main) {
   const panel = el("div", "chatpanel");
@@ -276,6 +290,7 @@ function drawChat(main) {
   comp.append(box, send);
   panel.append(head, thread, chips, err, comp);
   main.append(panel);
+  fitThread();
 }
 
 /* ---- the Security team's view ("Lantern Audit · Wisp activity"): everything here comes from the run log's `inside` ---- */

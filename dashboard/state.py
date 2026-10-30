@@ -23,7 +23,7 @@ from . import qa
 from .inside import message_context, patient_banner
 from .live import Choice, LiveRunner, resolve
 from .pool import POOL_DIR, POOL_MIN, load_pool, pick, run_paths
-from .steps import STEPS, personalise, practice_ms
+from .steps import STEPS, flow_steps, personalise, practice_ms
 from .viewmodel import badge, inbox_view, message_view, run_view
 
 ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal")
@@ -37,13 +37,16 @@ class DashboardState:
                  clock: Callable[[], float] = time.time, preflight: Callable[[], list[dict]] | None = None,
                  backup: Path | str | None = None, inbox: dict | None = None, patients: dict | None = None,
                  random_mode: bool = False, pool_dir: Path | str | None = None, rng: random.Random | None = None,
-                 live_factory: Callable[[dict | None], LiveRunner] | None = None, practice: bool = False) -> None:
+                 live_factory: Callable[[dict | None], LiveRunner] | None = None, practice: bool = False,
+                 flow: str = "staff") -> None:
         self._lock = threading.RLock()
         self._clock = clock
         self._rng = rng or random.SystemRandom()
         self._replay_dir = Path(replay_dir)
         self._pool_dir = Path(pool_dir) if pool_dir else POOL_DIR
         self.random_mode = random_mode
+        self.flow = flow  # "staff": the staff inbox steps (default) | "chat": title, patient chat, why, closer
+        self.stage_enabled = False  # set by __main__ with --stage: the presenter shows its stage buttons
         self.variant: dict | None = None
         self.pool: list[dict] = []
         self.pool_total = 0
@@ -80,8 +83,8 @@ class DashboardState:
         self._preflight_at = 0.0
         self._preflight_busy = False
         self.refresh_preflight()
-        if self.live is not None and self.mode == "live":
-            self.live.start()  # step 0 is open: start both live runs now
+        if self.live is not None and self.mode == "live" and self.flow != "chat":
+            self.live.start()  # step 0 is open: start both live runs now (the chat flow runs live in /chat instead)
 
     # ------------------------------------------------------------------------------- variant and replays
 
@@ -91,7 +94,7 @@ class DashboardState:
         return self.random_mode and self.variant is None
 
     def _steps_for_variant(self) -> list[dict]:
-        return personalise(STEPS, self.variant, len(self.pool), self.fallback)
+        return personalise(flow_steps(self.flow), self.variant, len(self.pool), self.fallback)
 
     def _load_replays(self) -> None:
         """The saved runs this dashboard replays: the variant's own pool runs, or the canonical runs/demo pair."""
@@ -233,8 +236,8 @@ class DashboardState:
     def _refresh_stale_live(self) -> None:
         """The title is open: live results younger than STALE_LIVE_AFTER_S stay (going back and forth costs the GPU
         nothing); older ones are run again, so a LIVE badge on stage never sits on a result from hours ago."""
-        if self.live is None or self.mode != "live":
-            return
+        if self.live is None or self.mode != "live" or self.flow == "chat":
+            return  # (the chat flow has no msg-004 runs to keep fresh: the GPU is for /chat)
         age = self.live.age()
         if age is None:
             self.live.start()  # nothing yet: start; a run still going is left alone (start is a no-op once slots exist)
@@ -270,6 +273,7 @@ class DashboardState:
                 "backup": bool(self.backup and self.backup.is_file()),
                 "replay_error": self.replay_error, "preflight": list(self._preflight_result),
                 "random": self._random_view(), "practice": self._practice_view(),
+                "flow": self.flow, "stage": bool(self.stage_enabled),
             }
 
     def views(self, *, force_replay: bool = False) -> dict:
@@ -297,6 +301,12 @@ class DashboardState:
             return {"message": message, "inbox": inbox_view(inbox, self._patients, shown.get("id")) if first else [],
                     "runs": runs, "replay_error": self.replay_error}
 
+    def _entered_chat_step(self) -> None:
+        """Opening the patient chat starts it clean: Warding Circle off, the patient's view, an empty thread (a run still in
+        flight is never cut off: reset refuses then, and the thread stays)."""
+        if self.chat is not None and self.steps[self.step]["id"] == "chat":
+            self.chat.act("reset")
+
     def act(self, action: str, arg: object = None) -> dict:
         """Apply a key or button. Unknown actions are ignored. Returns the new snapshot."""
         with self._lock:
@@ -316,6 +326,7 @@ class DashboardState:
                 target = max(0, min(last, target))
                 if target != self.step:
                     self.step = target
+                    self._entered_chat_step()
                     self.step_started = now
                     self.epoch += 1
                     if target > 0 and self.demo_started is None:
@@ -329,7 +340,7 @@ class DashboardState:
                 if self.practice and self.phase != "run":  # R after the questions: the whole rehearsal again
                     self._reset_practice()
                     self.step, self.demo_started = 0, None
-                if self.live is not None and self.mode == "live" and self.step in (0, 3, 4):
+                if self.live is not None and self.mode == "live" and self.flow != "chat" and self.step in (0, 3, 4):
                     self.live.restart()
             elif action == "toggle_mode":
                 if self.live is None:
@@ -337,6 +348,6 @@ class DashboardState:
                 else:
                     self.mode = "replay" if self.mode == "live" else "live"
                     self.epoch += 1
-                    if self.mode == "live":
+                    if self.mode == "live" and self.flow != "chat":
                         self.live.start()
             return self.snapshot()

@@ -63,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="enable the presenter's stage buttons (projector switch, fixed terminal commands); "
                              "loopback only, never on a shared or tunnelled instance")
     parser.add_argument("--replay-only", action="store_true", help="never call Ollama; every badge says REPLAY")
+    parser.add_argument("--staff-inbox", action="store_true",
+                        help="run the demo on the staff inbox (the original steps) instead of the patient chat")
     parser.add_argument("--random", action="store_true",
                         help="a variant picked at random from the tested pool (runs/pool/); R re-rolls it")
     parser.add_argument("--practice", action="store_true",
@@ -89,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         preflight=lambda: run_checks(DEMO_DIR, replay_only=replay_only, model=args.model,
                                      host=args.ollama_host, cwd=ROOT),
         random_mode=args.random, practice=args.practice,
+        flow="staff" if args.staff_inbox or args.random or args.practice else "chat",
     )
     if args.stage and args.host not in ("127.0.0.1", "localhost", "::1"):
         print("--stage only works on a loopback host (127.0.0.1); refusing to expose stage actions", file=sys.stderr)

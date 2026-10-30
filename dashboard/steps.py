@@ -94,6 +94,33 @@ STEPS: list[dict] = [
     },
 ]
 
+# The patient-chat flow (Rafi, 3:28 PM): title, the patient portal chat (the attack typed and pasted, then the Security team's
+# view, the Warding Circle, the same message again: all inside /chat, driven by keys I and G or the presenter's buttons),
+# why it works, closer. The staff inbox steps above stay the flow of `--staff-inbox`, `--random`, `--practice` and the static Pages.
+CHAT_STEP: dict = {
+    "id": "chat", "name": "Patient chat", "min_ms": 6000,
+    "say": "This is the hospital's patient portal. Barnaby is signed in and chatting with Wisp, the hospital's virtual "
+           "assistant. Send number one: the attack is typed right in the chat, a fake system notice. Guard off. Wisp "
+           "looks up Casper Ghostly, who isn't Barnaby, and copies his date of birth, MRN and a restricted "
+           "behavioral-health note into the reply, plus the attacker's phone number. Send number two: the same attack "
+           "hidden in pasted text. The chat bubble shows an ordinary reschedule request; the model gets the raw HTML. "
+           "Same leak. Press I: this is what the security team sees, the alert, the audit log of the lookup, and the "
+           "raw request and response. Press G: Warding Circle mode on. Press I, and send it again. Now the hospital's "
+           "template answers. Wisp heard the ghost and had nothing to act with. Whispering means an attack was tried "
+           "and contained.",
+    "headline": "Patient chat with Wisp",
+    "caption": "Synthetic patients. Nothing is ever sent.",
+}
+FLOWS = {"staff": ("title", "hook", "reveal", "possessed", "whispering", "why", "closer"),
+         "chat": ("title", "chat", "why", "closer")}
+
+
+def flow_steps(flow: str) -> list[dict]:
+    """The steps for one flow, in order. Unknown flows are the staff inbox (the original seven)."""
+    by_id = {s["id"]: s for s in STEPS} | {CHAT_STEP["id"]: CHAT_STEP}
+    return [by_id[i] for i in FLOWS.get(flow, FLOWS["staff"])]
+
+
 # `--random`: the two lines that name the variant's details (planning/DEMO-SCRIPT.md). {how} is the hiding trick with
 # its preposition, {decoy} the other patient's name, {phone} the attacker's number, {kept} the size of the tested pool.
 SAY_RANDOM = {
@@ -183,5 +210,6 @@ def all_text(spoken: bool = True) -> list[str]:
             else:
                 out.append(str(value))
     out += list(METER_CAPTION.values())
+    out += [str(v) for k, v in CHAT_STEP.items() if k not in ("id", "min_ms") and (spoken or k != "say")]
     out += ([RANDOM_CAPTION, FALLBACK_CAPTION] + (list(SAY_RANDOM.values()) if spoken else []))
     return out

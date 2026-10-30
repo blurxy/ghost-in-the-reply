@@ -262,6 +262,9 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .arrow{align-self:center;color:var(--mag);font-size:calc(var(--head)*.8);font-weight:900}
 .foot{color:var(--amb);font-weight:800}
 
+/* the patient chat (flow "chat"): the audience view is the /chat portal itself, full screen, under everything else */
+#chatframe{position:fixed;inset:0;width:100%;height:100%;border:0;background:#EDF2F6;z-index:4;display:none}
+
 /* backup video */
 #video{position:fixed;inset:0;background:#000;display:none;z-index:9}
 #video video{width:100%;height:100%;object-fit:contain}
@@ -286,7 +289,7 @@ body.presenter, body.presenter html{overflow:auto}
 .warnbox{background:#2a2300;border:2px solid var(--amb);color:var(--amb);border-radius:10px;padding:1.2vh 1vw;font-weight:700}
 .infobox{background:#0f1f2b;border:2px solid var(--cyn);color:var(--cyn);border-radius:10px;padding:1.2vh 1vw;font-weight:600}
 /* the right column is bounded by the screen and scrolls if it must, so nothing is ever cut off; rows are compact */
-#pr{display:flex;flex-direction:column;gap:1.1vh;min-width:0;min-height:0;overflow-y:auto;padding-right:.6vw}
+#pr{display:flex;flex-direction:column;gap:1.1vh;min-width:0;min-height:0;overflow-y:auto;scrollbar-width:none;padding-right:.6vw}  /* the buttons sit first; the rest scrolls by wheel, with no scrollbar to look at */
 #pl{min-height:0}
 .timers{display:flex;gap:1vw}
 .timers div{flex:1;background:var(--card);border:2px solid var(--line);border-radius:10px;padding:.5vh .8vw}
@@ -302,6 +305,16 @@ button:hover{border-color:var(--mag)}
 .pill small{display:block;font-weight:400;opacity:.85;font-size:.85em}
 .pill.ok{background:#00331a;color:var(--grn)} .pill.fail{background:#3a0a14;color:var(--red)} .pill.skip{background:#22222e;color:var(--dim)}
 .keys{color:var(--dim);font-size:.85em}
+/* the presenter's demo buttons: every demo action is one click; each shows its own state (running / done / failed) */
+.demo{display:flex;flex-direction:column;gap:.8vh}
+.demo .grp{display:flex;flex-wrap:wrap;gap:.6vw}
+.dbtn{text-align:left;line-height:1.2;padding:.6vh .9vw}
+.dbtn small{display:block;font-weight:400;font-size:.8em;color:var(--dim)}
+.dbtn small:empty{display:none}
+.dbtn.running{border-color:var(--cyn)} .dbtn.running small{color:var(--cyn)}
+.dbtn.done{border-color:var(--grn)} .dbtn.done small{color:var(--grn)}
+.dbtn.failed{border-color:var(--red)} .dbtn.failed small{color:var(--red)}
+#demo-status{color:var(--dim);font-size:.9em;min-height:1.2em}
 h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
 
 @keyframes slam{0%{opacity:0;transform:scale(3)}60%{opacity:1;transform:scale(.94)}100%{opacity:1;transform:scale(1)}}
@@ -358,10 +371,12 @@ h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;lette
       <button data-act="back">← Back</button><button data-act="next">Next →</button>
       <button data-act="rerun" id="b-rerun">R Rerun</button><button data-act="toggle_mode" id="b-mode">L Live / Replay</button>
     </div>
+    <div class="demo"><h2>Chat buttons</h2><div class="grp" id="demo-chat"></div><div id="demo-status"></div></div>
+    <div class="demo" id="demo-stage-box" hidden><h2>Stage buttons</h2><div class="grp" id="demo-stage"></div></div>
     <div><h2>Steps</h2><ol class="steps" id="p-steps"></ol></div>
     <div><h2>Sources</h2><div class="pills" id="p-sources"></div></div>
     <div><h2>Preflight</h2><div class="pills" id="p-pre"></div></div>
-    <div class="keys">→ Space PgDn next · ← PgUp back · R rerun (re-roll in --random) · L live/replay · F fullscreen · B backup video</div>
+    <div class="keys">→ Space PgDn next · ← PgUp back · R rerun (re-roll in --random) · L live/replay · F fullscreen · B backup video · I Security team / Patient · G Warding Circle</div>
   </aside>
 </div>
 <div id="video"></div>
@@ -434,6 +449,21 @@ function localAct(action) {
 }
 
 /* --------------------------------------------------------------- drawing */
+/* which saved/live run the top bar's badge and wait line follow: GUARD=1 from the "whispering" step on (the original flow's step 4) */
+function stepGuard() {
+  const w = S.steps.findIndex((st) => st.id === "whispering");
+  return w >= 0 ? (S.step >= w ? "1" : "0") : "1";
+}
+const stepId = () => (S && S.steps[S.step] ? S.steps[S.step].id : "");
+const onChatStep = () => S && S.flow === "chat" && stepId() === "chat" && !(S.practice && S.practice.phase !== "run");
+
+/* the patient chat is a page of its own (/chat); the audience view shows it full screen on the chat step and keeps it loaded */
+function chatFrame(show) {
+  let f = $("#chatframe");
+  if (show && !f) { f = document.createElement("iframe"); f.id = "chatframe"; f.src = "/chat"; f.title = "Patient portal"; document.body.append(f); }
+  if (f) f.style.display = show ? "block" : "none";
+}
+
 function runFor(guard) { return V && V.runs && V.runs[String(guard)]; }
 
 function drawStep() {
@@ -444,6 +474,7 @@ function drawStep() {
   $("#overlay").replaceChildren();
   $("#overlay").classList.remove("on");
   $("#frame").classList.remove("dim");
+  chatFrame(!PRESENTER && onChatStep());
   const unread = ((V && V.inbox) || []).filter((r) => r.unread).length;  // the rail's Inbox count: what the list shows
   $("#rail-n").textContent = unread;
   $("#rail-n").style.display = unread ? "" : "none";
@@ -477,9 +508,10 @@ function render() {
 }
 
 function chrome() {
-  const guard = S.step >= 4 ? "1" : "0";
+  const guard = stepGuard();
   const b = (S.runs[guard] || {}).badge || { source: "replay", text: "REPLAY" };
   const badge = $("#badge");
+  badge.style.display = S.flow === "chat" ? "none" : "";  // the chat flow's badges are on Wisp's replies, one per answer
   badge.textContent = b.text;
   badge.className = b.source === "live" ? "live" : b.source === "wait" ? "wait" : "replay";
   updateWait();
@@ -505,7 +537,7 @@ function waitScreen(stage, guard) {
 function updateWait() {
   const line = $("#waitline");
   if (!line || !S) return;
-  const w = (S.runs[S.step >= 4 ? "1" : "0"] || {}).wait;
+  const w = (S.runs[stepGuard()] || {}).wait;
   if (w) line.textContent = "Gemma 4 is working: " + Math.floor(w.elapsed) + " s of up to " + w.timeout +
     " s. After that, the saved real run takes over and says so.";
 }
@@ -857,13 +889,15 @@ const DRAW = {
     const c = el("div", "splash");  // the app's sign-in / splash card, over the dimmed app
     // "running on this laptop" only while both results on screen really are live; a fallback or a replay says so instead
     const liveNow = !AUTOPLAY && S.mode === "live" && !S.replay_only &&
-      ["0", "1"].every((g) => ((S.runs[g] || {}).badge || {}).source === "live");
+      (S.flow === "chat" || ["0", "1"].every((g) => ((S.runs[g] || {}).badge || {}).source === "live"));
     c.append(logo("logo"), el("h1", null, step.headline), el("div", "sub", step.sub),
              el("div", "foot", liveNow ? step.foot : step.foot_replay));
     const m = V && V.message;
     if (m) inboxPanes(stage).reading.append(staffBody(m));  // the app behind the card
     showSplash(c);
   },
+
+  chat() {},  // the audience sees /chat in the full-screen frame (chatFrame); nothing is drawn in the staff app
 
   hook(stage, step) {
     stage_h1(stage, step);
@@ -1091,7 +1125,109 @@ function presenterTick() {
     p.append(el("small", null, c.detail));
     return p;
   }));
+  renderDemo();
   $("#b-mode").textContent = S.replay_only ? "L Replay-only" : "L " + (S.mode === "live" ? "Live → Replay" : "Replay → Live");
+}
+
+/* ------------------------------------------------------- the demo buttons
+   Every demo action is one click (planning/PATIENT-CHAT-SPEC.md, update 3:32 PM). A button sends an action NAME (a preset name, or
+   one word like "view"); the server maps names to what runs, and nothing typed here ever reaches a command. Each button shows its
+   state from the server's reply: running, done or failed. The keys (I, G) call the same two functions. */
+const STAGE_BUTTONS = [["show-terminal", "Show terminal"], ["show-dashboard", "Show dashboard"], ["term-ollama-ps", "Terminal: ollama ps"],
+  ["term-curl-guard-off", "Terminal: raw curl, guard off"], ["term-curl-guard-on", "Terminal: raw curl, guard on"],
+  ["term-tests", "Terminal: run the tests"]];
+let C = null;            // the chat session's state (presenter view only)
+const BTN = {};          // button key -> { state: "running" | "done" | "failed", text, sent }
+let demoSig = "";
+
+function setBtn(key, state, text, sent) {
+  BTN[key] = { state, text: text || "", sent: !!sent };
+  if (state === "done") setTimeout(() => { if (BTN[key] && BTN[key].state === "done") { delete BTN[key]; renderDemo(); } }, 5000);
+  renderDemo();
+}
+
+async function postJSON(path, body, headers) {
+  const r = await fetch(path, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, headers || {}), body: JSON.stringify(body) });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* not JSON */ }
+  return { ok: r.ok, status: r.status, data };
+}
+
+async function chatSend(preset, key) {
+  if (key) setBtn(key, "running", "sending…");
+  try {
+    const r = await postJSON("/api/chat/send", { preset });
+    if (!r.ok) { if (key) setBtn(key, "failed", r.data.error || "failed (" + r.status + ")"); return; }
+    if (key) setBtn(key, "running", "Wisp is typing…", true);
+  } catch (e) { if (key) setBtn(key, "failed", "the dashboard did not answer"); }
+  pollChat();
+}
+async function chatAct(action, key) {
+  if (key) setBtn(key, "running", "…");
+  try {
+    const r = await postJSON("/api/chat/act", { action });
+    if (key) setBtn(key, r.ok ? "done" : "failed", r.ok ? "done" : (r.data.error || "failed (" + r.status + ")"));
+  } catch (e) { if (key) setBtn(key, "failed", "the dashboard did not answer"); }
+  pollChat();
+}
+async function stageAct(name, key) {
+  setBtn(key, "running", "running…");
+  try {
+    const r = await postJSON("/api/stage", { action: name }, { "X-Haunted-Stage": "1" });
+    setBtn(key, r.ok && r.data.ok ? "done" : "failed", r.ok && r.data.ok ? "done" : (r.data.error || "failed (" + r.status + ")"));
+  } catch (e) { setBtn(key, "failed", "the dashboard did not answer"); }
+}
+
+async function pollChat() {
+  if (!PRESENTER) return;
+  try {
+    C = await getJSON("/api/chat/state");
+    // a send button stays "running" until Wisp has answered, then shows how: done (LIVE or REPLAY), or failed (timed out)
+    Object.keys(BTN).forEach((k) => {
+      if (BTN[k].sent && BTN[k].state === "running" && !C.busy && C.turn) {
+        const t = C.turn, ok = t.state === "done";
+        setBtn(k, ok ? "done" : "failed", ok ? "answered · " + (t.badge ? t.badge.text.split(" ")[0] : "") : (t.state || "failed"));
+      }
+    });
+    renderDemo();
+  } catch (e) { /* keep the last buttons */ }
+}
+
+function renderDemo() {
+  if (!PRESENTER || !S) return;
+  const sec = C && C.role === "security", on = C && C.guard;
+  const chat = [["send-visible", "Send #1 · attack typed in the chat", () => chatSend("visible", "send-visible")],
+    ["send-hidden", "Send #2 · attack hidden in pasted text", () => chatSend("hidden", "send-hidden")],
+    ["view", sec ? "View as Patient (I)" : "View as Security team (I)", () => chatAct("view", "view")],
+    ["guard", on ? "Warding Circle: On → Off (G)" : "Warding Circle: Off → On (G)", () => chatAct("guard", "guard")],
+    ["resend-visible", "Resend #1", () => chatSend("visible", "resend-visible")],
+    ["resend-hidden", "Resend #2", () => chatSend("hidden", "resend-hidden")]];
+  const stage = S.stage ? STAGE_BUTTONS.map(([name, label]) => ["stage-" + name, label, () => stageAct(name, "stage-" + name)]) : [];
+  const busy = !!(C && C.busy);
+  const sig = JSON.stringify([chat.map((c) => c[1]), stage.length, Object.entries(BTN).map(([k, v]) => [k, v.state, v.text]), busy,
+                              C && C.turn_state, C && C.turn && C.turn.badge, C && C.turn && C.turn.warn, C && C.available]);
+  if (sig === demoSig) return;  // rebuild only when something changed, so a button is never replaced under the mouse
+  demoSig = sig;
+  const draw = (items, into) => $(into).replaceChildren(...items.map(([key, label, fn]) => {
+    const st = BTN[key], b = el("button", "dbtn" + (st ? " " + st.state : ""), label);
+    b.type = "button";
+    b.append(el("small", null, st ? st.text : ""));
+    b.disabled = !!st && st.state === "running";
+    b.addEventListener("click", fn);
+    return b;
+  }));
+  draw(chat, "#demo-chat");
+  $("#demo-stage-box").hidden = !stage.length;
+  if (stage.length) draw(stage, "#demo-stage");
+  let line = "";
+  if (C && !C.available) line = "Chat unavailable: " + (C.reason || "");
+  else if (C && C.turn_state === "typing") line = "Wisp is typing…";
+  else if (C && C.turn) {
+    const t = C.turn;
+    line = (t.state === "done" ? "Wisp answered · " : t.state === "timed out" ? "Timed out · " : "No answer · ") + (t.badge ? t.badge.text : "") +
+      " · Warding Circle " + (t.guard ? "On" : "Off") + (t.warn ? " · WARNING: " + t.warn : "") + (t.note ? " · " + t.note : "");
+  } else line = "Chat is clean. Warding Circle " + (on ? "On" : "Off") + ".";
+  $("#demo-status").textContent = line;
 }
 
 /* ------------------------------------------------------------------ keys */
@@ -1132,7 +1268,8 @@ $("#who").addEventListener("click", toggleInside);
 document.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key;
-  if ((k === "i" || k === "I") && !typingNow()) toggleInside();
+  if ((k === "i" || k === "I") && !typingNow()) { if (onChatStep()) chatAct("view", "view"); else toggleInside(); }
+  else if ((k === "g" || k === "G") && !typingNow() && onChatStep()) chatAct("guard", "guard");
   else if (k === " " && S && S.practice && S.practice.phase === "qa") act("reveal");  // practice questions: Space shows the answer
   else if (k === "ArrowRight" || k === " " || k === "PageDown") act("next");
   else if (k === "ArrowLeft" || k === "PageUp") act("back");
@@ -1148,7 +1285,7 @@ document.querySelectorAll("button[data-act]").forEach((b) => b.addEventListener(
 if (FINAL) window.__go = (n) => { FORCE_STEP = n; return poll(); };  // layout checks only: jump to a step
 if (PRESENTER) document.body.classList.add("presenter");
 if (AUTOPLAY && !PRESENTER) startAutoplay();
-else { poll(); setInterval(poll, 300); setInterval(presenterTick, 250); }
+else { poll(); setInterval(poll, 300); setInterval(presenterTick, 250); if (PRESENTER) { pollChat(); setInterval(pollChat, 500); } }
 </script>
 </body>
 </html>

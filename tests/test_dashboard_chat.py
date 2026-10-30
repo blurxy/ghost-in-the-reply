@@ -354,3 +354,113 @@ def test_the_page_follows_the_wording_rules():
     low = PAGE_TEXT.lower()
     for banned in ("unbreakable", "no gaps", "hipaa violation", "psychotherapy note", "epic's"):
         assert banned not in low, banned
+
+
+# ------------------------------------------------------------------------------------------- the flow and the buttons
+
+from dashboard import __main__ as dash_main  # noqa: E402
+from dashboard import stage  # noqa: E402
+from dashboard import steps as dsteps  # noqa: E402
+from test_dashboard import Clock, patched_main  # noqa: E402
+
+DASH_PAGE = (CHAT_PAGE.with_name("page.html")).read_text(encoding="utf-8")
+
+
+def test_the_chat_flow_is_title_chat_why_closer_and_the_staff_flow_is_unchanged():
+    assert [s["id"] for s in dsteps.flow_steps("chat")] == ["title", "chat", "why", "closer"]
+    assert [s["id"] for s in dsteps.flow_steps("staff")] == [s["id"] for s in dsteps.STEPS]
+    assert [s["id"] for s in dsteps.flow_steps("anything else")] == [s["id"] for s in dsteps.STEPS]
+
+
+def test_the_chat_step_copy_is_in_the_wording_check_and_obeys_the_rules():
+    say = dsteps.CHAT_STEP["say"]
+    assert say in dsteps.all_text(spoken=True) and say not in dsteps.audience_text()
+    assert dsteps.CHAT_STEP["headline"] in dsteps.audience_text()
+    low = " ".join(dsteps.all_text()).lower()
+    for banned in ("unbreakable", "no gaps", "hipaa violation", "psychotherapy note", "weaker", "unsafe"):
+        assert banned not in low, banned
+
+
+def chat_state(**kw) -> DashboardState:
+    state = DashboardState(DEMO, live=None, mode="replay", clock=Clock(1000.0), flow="chat", **kw)
+    state.chat = session()
+    return state
+
+
+def test_state_in_the_chat_flow_has_four_steps_and_says_which_flow_and_whether_stage_buttons_exist():
+    state = chat_state()
+    snap = state.snapshot()
+    assert snap["flow"] == "chat" and snap["n"] == 4 and snap["stage"] is False
+    state.stage_enabled = True
+    assert state.snapshot()["stage"] is True
+    assert DashboardState(DEMO, live=None, mode="replay").snapshot()["flow"] == "staff"
+
+
+def test_opening_the_chat_step_starts_it_clean_and_leaving_it_keeps_the_thread():
+    state = chat_state()
+    state.chat.act("guard"); state.chat.act("view")
+    state.chat.send({"preset": "visible"})
+    wait_done(state.chat)
+    state.act("next")  # title -> chat: a clean chat
+    snap = state.chat.snapshot()
+    assert snap["role"] == "patient" and snap["guard"] == 0 and snap["turn_state"] == "idle"
+    state.chat.act("guard")
+    state.chat.send({"preset": "hidden"})
+    wait_done(state.chat)
+    state.act("next")  # chat -> why: nothing is wiped
+    assert state.chat.snapshot()["turn"] is not None and state.chat.snapshot()["guard"] == 1
+    state.act("back")  # why -> chat again: clean again, for the next rehearsal
+    assert state.chat.snapshot()["turn_state"] == "idle"
+
+
+class CountingRunner:
+    started = 0
+
+    def start(self): self.started += 1
+    def restart(self): self.started += 1
+    def age(self): return None
+    def outcome(self, guard): return None
+
+
+def test_the_chat_flow_never_starts_the_msg_004_live_runs_so_the_gpu_is_the_chats():
+    runner = CountingRunner()
+    state = DashboardState(DEMO, live=runner, mode="live", clock=Clock(1000.0), flow="chat")
+    state.snapshot(); state.act("rerun"); state.act("toggle_mode"); state.act("toggle_mode"); state.snapshot()
+    assert runner.started == 0
+    staff = CountingRunner()
+    DashboardState(DEMO, live=staff, mode="live", clock=Clock(1000.0))
+    assert staff.started == 1  # the staff flow still warms both runs at the title
+
+
+def test_main_runs_the_chat_flow_by_default_and_the_staff_inbox_when_asked(monkeypatch):
+    with patched_main(monkeypatch) as seen:
+        assert dash_main.main(["--replay-only", "--port", "0"]) == 0
+        assert seen["state"].flow == "chat" and seen["state"].chat is not None
+    with patched_main(monkeypatch) as seen:
+        assert dash_main.main(["--replay-only", "--staff-inbox", "--port", "0"]) == 0
+        assert seen["state"].flow == "staff" and len(seen["state"].steps) == 7
+    with patched_main(monkeypatch) as seen:
+        assert dash_main.main(["--practice", "--port", "0"]) == 0
+        assert seen["state"].flow == "staff"
+
+
+def test_the_presenters_stage_buttons_are_exactly_the_servers_allowlist_in_demo_order():
+    found = re.search(r"const STAGE_BUTTONS = \[(.*?)\];", DASH_PAGE, re.S).group(1)
+    pairs = re.findall(r'\["([a-z-]+)", "([^"]+)"\]', found)
+    assert [n for n, _ in pairs] == list(stage.ACTIONS)
+    assert dict(pairs) == stage.labels()
+
+
+def test_the_buttons_send_names_only_and_the_stage_ones_carry_the_header():
+    assert 'postJSON("/api/stage", { action: name }, { "X-Haunted-Stage": "1" })' in DASH_PAGE
+    assert 'postJSON("/api/chat/send", { preset })' in DASH_PAGE and 'postJSON("/api/chat/act", { action })' in DASH_PAGE
+    for banned in ("innerHTML", "insertAdjacentHTML", "document.write", "eval("):
+        assert banned not in DASH_PAGE, banned
+    for label in ("Send #1 · attack typed in the chat", "Send #2 · attack hidden in pasted text", "View as Security team (I)",
+                  "View as Patient (I)", "Warding Circle: Off → On (G)", "Resend #1", "Resend #2"):
+        assert label in DASH_PAGE, label
+
+
+def test_the_chat_step_shows_the_portal_full_screen_and_the_keys_i_and_g_reach_it():
+    assert 'f.src = "/chat"' in DASH_PAGE and "chatFrame(!PRESENTER && onChatStep())" in DASH_PAGE
+    assert 'if (onChatStep()) chatAct("view", "view")' in DASH_PAGE and 'chatAct("guard", "guard")' in DASH_PAGE
