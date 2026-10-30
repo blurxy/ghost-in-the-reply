@@ -68,6 +68,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(sandbox.info() if sandbox is not None else {"available": False, "reason": NEEDS_MODEL})
             elif path == "/chat":
                 self._send(200, CHAT_PAGE.read_bytes(), "text/html; charset=utf-8")
+            elif path == "/api/chat/activity":
+                chat = self.state.chat
+                self._json(chat.activity() if chat is not None else {"turn": None, "state": "idle", "events": [], "source": None, "thinking": None})
             elif path == "/api/chat/state":
                 chat = self.state.chat
                 full = "full=0" not in (self.path.split("?", 1) + [""])[1].split("&")

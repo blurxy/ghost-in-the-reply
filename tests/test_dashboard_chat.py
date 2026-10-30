@@ -532,3 +532,101 @@ def test_the_chat_history_stays_in_place_and_reset_clears_it():
     assert len(chat.snapshot()["turns"]) == cp.HISTORY  # bounded: the oldest fall off
     chat.act("reset")
     assert chat.snapshot()["turn"] is None and chat.snapshot().get("turns") is None
+
+
+# ------------------------------------------------------------------------------------------ the live Wisp activity panel
+
+def emitting(events: list[dict], gate: threading.Event | None = None) -> Backend:
+    """A run_chat that takes the lead's on_event and pushes `events` the moment it runs, then answers like a validated run."""
+    def run_chat(guard, model, *, preset=None, text=None, deadline_s=None, on_event=None):
+        for ev in events:
+            on_event(ev)
+        if gate is not None:
+            gate.wait(5)
+        return saved(preset or "visible", int(guard))
+    return Backend(run_chat, presets=REAL.presets, cap=REAL.cap, preset_paths=REAL.preset_paths, refusals=REAL.refusals)
+
+
+LIVE = [{"kind": "run_start", "t": 0.0, "guard": 0, "model": "gemma4-12b-agent", "thinking": "off (think: false, for speed)"},
+        {"kind": "model_start", "t": 0.0, "turn": 1},
+        {"kind": "model_done", "t": 2.1, "turn": 1, "ms": 2065, "eval_count": 18, "response": {"content": "", "tool_calls": []}},
+        {"kind": "tool_call", "t": 2.1, "tool": "lookup_patient", "args": {"query": "Casper Ghostly"}},
+        {"kind": "tool_result", "t": 2.1, "tool": "lookup_patient", "allowed": True, "patients": ["p-1031"], "sender": "p-002",
+         "sender_only": False, "fields": ["dob", "mrn", "behavioral_health"], "note": None, "preview": "{...}"}]
+
+
+def test_live_events_reach_the_activity_feed_the_moment_they_happen_and_nothing_is_added():
+    gate = threading.Event()
+    chat = session(emitting(LIVE, gate))
+    assert chat.activity()["state"] == "idle" and chat.activity()["events"] == []
+    chat.send({"preset": "visible"})
+    end = time.time() + 5
+    while time.time() < end and len(chat.activity()["events"]) < len(LIVE):
+        time.sleep(0.02)
+    mid = chat.activity()
+    assert mid["state"] == "typing" and mid["events"] == LIVE and mid["source"] == "live"  # verbatim, while Wisp is still typing
+    assert mid["thinking"] == "off (think: false, for speed)"
+    gate.set()
+    wait_done(chat)
+    done = chat.activity()
+    assert done["state"] == "done" and done["events"] == LIVE  # a live run keeps its own events
+
+
+def test_a_replayed_run_gets_its_events_rebuilt_from_the_log_with_the_same_kinds():
+    chat = session(scripted(fail=True))  # the model fails, so the saved real run is shown
+    chat.send({"preset": "visible"})
+    wait_done(chat)
+    act = chat.activity()
+    kinds = [e["kind"] for e in act["events"]]
+    run = saved("visible", 0)
+    assert act["source"] == "run log" and kinds[0] == "run_start" and kinds[-1] == "run_done"
+    assert kinds.count("model_done") == len(run["turns"]) and kinds.count("tool_call") == len(run["events"])
+    call = next(e for e in act["events"] if e["kind"] == "tool_call")
+    assert call["tool"] == "lookup_patient" and call["args"] == {"query": "Casper Ghostly"}  # verbatim from the log
+    result = next(e for e in act["events"] if e["kind"] == "tool_result")
+    assert result["patients"] == ["p-1031"] and result["sender"] == "p-002" and result["sender_only"] is False
+    assert "fields" not in result  # the log does not hold which fields came back: left out, not invented
+    assert act["thinking"] == cp.THINKING
+
+
+def test_a_guard_on_replay_shows_strip_the_models_json_and_the_template_not_tool_calls():
+    chat = session(scripted(fail=True))
+    chat.act("guard")
+    chat.send({"preset": "hidden"})
+    wait_done(chat)
+    kinds = [e["kind"] for e in chat.activity()["events"]]
+    assert kinds[:2] == ["run_start", "strip"] and "lookup_sender" in kinds and "model_json" in kinds and "template" in kinds
+    assert "tool_call" not in kinds
+    strip = next(e for e in chat.activity()["events"] if e["kind"] == "strip")
+    assert strip["removed_hidden"] == len(saved("hidden", 1)["strip"]["removed"]) and strip["removed_hidden"] > 0
+
+
+def test_a_callback_that_gets_garbage_or_the_wrong_turn_never_breaks_the_run():
+    chat = session(emitting([]))
+    chat.send({"preset": "visible"})
+    wait_done(chat)
+    for junk in (None, 3, "x", [1], {"kind": "x", "o": object()}):
+        chat._push(1, junk)
+        chat._push(99, {"kind": "late"})
+    kinds = [e["kind"] for e in chat.activity()["events"]]
+    assert "late" not in kinds and chat.snapshot()["turn"]["state"] == "done"
+
+
+def test_the_activity_endpoint_and_the_panels_copy():
+    state = DashboardState(DEMO, mode="replay")
+    state.chat = session(emitting(LIVE))
+    server = make_server(state, port=0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        assert json.loads(call(base, "/api/chat/activity")[1])["events"] == []
+        call(base, "/api/chat/send", {"preset": "visible"})
+        wait_done(state.chat)
+        body = json.loads(call(base, "/api/chat/activity")[1])
+        assert body["events"] == LIVE and body["turn"] == 1
+    finally:
+        server.shutdown()
+        server.server_close()
+    for text in ("Wisp activity", "Gemma 4 thinking: ", "strip() removed ", "code looked up the sender only", "template reply",
+                 "NOT the sender", "Gemma 4 · turn ", "setInterval(pollAct, 300)", "/api/chat/activity", "JSON.stringify(r.ev, null, 2)"):
+        assert text in PAGE_TEXT, text

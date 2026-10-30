@@ -78,6 +78,24 @@ body.security #bar{border-bottom-color:var(--brand)}
 #err{padding:0 1em;color:var(--danger);font-size:.8em;min-height:0}
 #err:empty{display:none}
 
+/* the patient view: the chat, and beside it what Wisp is doing, as it happens */
+.patient{width:100%;min-height:0;display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:1.1vw}
+.patient .chatpanel{width:100%}
+.actpanel{min-height:0;min-width:0;display:flex;flex-direction:column;background:var(--surface);border:2px solid var(--border);border-radius:14px;overflow:hidden;font-size:.74em}
+.acthead{padding:.4em .9em;border-bottom:2px solid var(--border);font-weight:700;font-size:1.15em}
+.thinking{padding:.3em .9em;color:var(--muted);border-bottom:1px solid var(--border)}
+.arows{flex:1;min-height:0;overflow-y:auto;scrollbar-width:none}
+.arows::-webkit-scrollbar{display:none}
+.aempty{padding:.8em .9em;color:var(--muted)}
+.arow{padding:.25em .9em;border-bottom:1px solid var(--border);cursor:pointer;overflow-wrap:anywhere}
+.arow:hover{background:var(--paper)}
+.arow .tm{display:inline-block;min-width:3.2em;color:var(--muted);font-variant-numeric:tabular-nums}
+.arow.bad{background:var(--tint);color:var(--danger);font-weight:600}
+.arow.ok{color:var(--success)}
+.arow .src{color:var(--muted);font-size:.85em}
+.arow pre{margin:.3em 0 .1em;padding:.4em .6em;white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;font-family:var(--mono);font-size:.85em;line-height:1.3;color:var(--ink);font-weight:400;background:var(--paper);border:2px solid var(--border);border-radius:8px}
+.actsrc{padding:.2em .9em;color:var(--muted);font-size:.85em;border-top:1px solid var(--border)}
+
 /* footer */
 #foot{padding:.3em 1.4vw;border-top:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:.78em;text-align:center}
 
@@ -293,8 +311,85 @@ function drawChat(main) {
   send.addEventListener("click", sendTyped);
   comp.append(box, send);
   panel.append(head, thread, chips, err, comp);
-  main.append(panel);
+  const wrap = el("div", "patient"), act = el("div", "actpanel");
+  const ah = el("div", "acthead", "Wisp activity"), th = el("div", "thinking"), rows = el("div", "arows"), src = el("div", "actsrc");
+  th.id = "act-thinking"; rows.id = "act-rows"; src.id = "act-src";
+  act.append(ah, th, rows, src);
+  wrap.append(panel, act);
+  main.append(wrap);
   fitThread();
+  renderAct();
+}
+
+/* ---- Wisp activity: the run's own events, as they happen (the lead's on_event feed), each row expands to its raw JSON ---- */
+let ACT = { turn: null, state: "idle", events: [], source: null, thinking: null }, actSig = "";
+const OPEN = new Set();  // rows the person opened: "turn:index"
+const secs = (v) => (typeof v === "number" ? v.toFixed(1) + " s" : "");
+
+/* One row per thing that happened. A model turn is one row: "working…" while it runs, its time and tokens when it is done. */
+function actRows(events) {
+  const rows = [], byTurn = {};
+  events.forEach((ev, i) => {
+    const row = { key: ev.kind + ":" + i, t: ev.t, ev, cls: "", text: "" };
+    switch (ev.kind) {
+      case "run_start": row.text = "Run started · Warding Circle " + (ev.guard ? "On" : "Off") + (ev.model ? " · " + ev.model : ""); break;
+      case "model_start":
+        row.text = "Gemma 4 · turn " + ev.turn + " · working…"; byTurn[ev.turn] = row; break;
+      case "model_done": {
+        const r = byTurn[ev.turn] || row;
+        r.text = "Gemma 4 · turn " + ev.turn + " · " + (typeof ev.ms === "number" ? (ev.ms / 1000).toFixed(1) + " s" : "done") +
+                 (ev.eval_count ? " · " + ev.eval_count + " tokens" : "");
+        r.ev = ev; r.t = ev.t != null ? ev.t : r.t;
+        if (r !== row) return;
+        break;
+      }
+      case "tool_call": row.text = String(ev.tool) + " " + JSON.stringify(ev.args === undefined ? {} : ev.args); break;
+      case "tool_result": {
+        const ch = (ev.patients || []).length ? "chart " + ev.patients.join(", ") : "no chart";
+        row.text = "↳ " + ev.tool + ": " + ch + ((ev.patients || []).length ? (ev.sender_only ? " · the sender's" : " · NOT the sender (" + (ev.sender || "?") + ")") : "") +
+                   (ev.fields && ev.fields.length ? " · returned: " + ev.fields.join(", ") : "") + (ev.allowed === false ? " · refused" : "") + (ev.note ? " · " + ev.note : "");
+        row.cls = ev.allowed === false || ev.sender_only === false ? "bad" : (ev.sender_only ? "ok" : "");
+        break;
+      }
+      case "strip": row.text = "strip() removed " + ev.removed_hidden + " hidden span" + (ev.removed_hidden === 1 ? "" : "s") + (ev.kinds && Object.keys(ev.kinds).length ? " (" + Object.entries(ev.kinds).map(([k, n]) => k + " ×" + n).join(", ") + ")" : ""); break;
+      case "lookup_sender": row.text = "code looked up the sender only" + (ev.patient ? " (" + ev.patient + ")" : ""); row.cls = "ok"; break;
+      case "model_json": row.text = "Gemma 4 returned JSON: " + String(ev.content == null ? "" : ev.content).replace(/\s+/g, " ").slice(0, 160); break;
+      case "template": row.text = "template reply" + (ev.intent ? " · intent " + ev.intent : "") + (ev.to ? " · to " + ev.to : ""); row.cls = "ok"; break;
+      case "held": row.text = "held: " + (ev.reason || ""); break;
+      case "urgent": row.text = "urgent: " + (ev.phrase || ""); break;
+      case "run_done": row.text = "Run finished · " + (ev.status || "") + (ev.level ? " · Wisp: " + ev.level : "") + (typeof ev.duration_ms === "number" ? " · " + (ev.duration_ms / 1000).toFixed(1) + " s" : ""); break;
+      default: row.text = String(ev.kind);
+    }
+    rows.push(row);
+  });
+  return rows;
+}
+
+function renderAct() {
+  const box = $("#act-rows");
+  if (!box) return;
+  $("#act-thinking").textContent = ACT.thinking ? "Gemma 4 thinking: " + ACT.thinking : "";
+  $("#act-src").textContent = ACT.source === "run log" ? "Rebuilt from the saved run's log: the same data, nothing added." : ACT.source === "live" && ACT.turn ? "Live from the run, the moment each thing happened." : "";
+  const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+  box.replaceChildren();
+  const rows = actRows(ACT.events);
+  if (!rows.length) box.append(el("div", "aempty", ACT.state === "typing" ? "Wisp is starting…" : "Nothing yet. Send a message and watch Wisp work."));
+  rows.forEach((r, i) => {
+    const key = ACT.turn + ":" + r.key, row = el("div", "arow " + r.cls), open = OPEN.has(key);
+    row.append(el("span", "tm", secs(r.t)), document.createTextNode(r.text));
+    if (open) row.append(el("pre", null, JSON.stringify(r.ev, null, 2)));
+    row.addEventListener("click", () => { if (getSelection().toString()) return; if (OPEN.has(key)) OPEN.delete(key); else OPEN.add(key); renderAct(); });
+    box.append(row);
+  });
+  if (atEnd) box.scrollTop = box.scrollHeight;
+}
+
+async function pollAct() {
+  try {
+    const next = await (await fetch("/api/chat/activity", { cache: "no-store" })).json();
+    const sig = next.turn + "|" + next.state + "|" + next.events.length + "|" + next.source;
+    if (sig !== actSig) { actSig = sig; ACT = next; renderAct(); }
+  } catch (e) { /* keep the last rows */ }
 }
 
 /* ---- the Security team's view ("Lantern Audit · Wisp activity"): everything here comes from the run log's `inside` ---- */
@@ -436,6 +531,8 @@ function draw() {
 
 poll();
 setInterval(poll, 400);
+pollAct();
+setInterval(pollAct, 300);
 </script>
 </body>
 </html>
