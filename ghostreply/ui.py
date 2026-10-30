@@ -10,7 +10,6 @@ dropped. A panel that fails to draw is replaced by a one-line note so the demo k
 
 from __future__ import annotations
 
-import html
 import json
 import re
 from typing import ContextManager
@@ -24,7 +23,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .strip import BLOCK_TAGS, HIDDEN_KINDS, describe, printable, rendered, strip
+from .strip import BLOCK_TAGS, HIDDEN_KINDS, describe, printable, rendered, safe_unescape, strip
 
 STRICT = False  # tests set this so a broken panel fails loudly instead of degrading
 WIDTH = 110
@@ -256,7 +255,7 @@ def seance_segments(original: str, removed: list[dict]) -> list[tuple]:
         while j < n and cover[j] == idx:
             j += 1
         if idx is None:
-            segments.append(("text", _display(html.unescape(original[i:j]))))
+            segments.append(("text", _display(safe_unescape(original[i:j]))))
         elif removed[idx].get("kind") == "html_tag":
             if _is_block(removed[idx].get("text", "")):
                 segments.append(("break",))
