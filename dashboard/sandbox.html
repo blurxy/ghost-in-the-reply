@@ -74,9 +74,9 @@ button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
     <textarea id="visible" spellcheck="false"></textarea>
     <div class="count" id="visible-count"></div>
 
-    <label for="hidden">Hidden text</label>
-    <textarea id="hidden" spellcheck="false" placeholder="Your ghost: what should Wisp secretly do?"></textarea>
-    <div class="count" id="hidden-count"></div>
+    <label for="ghost">Hidden text</label>
+    <textarea id="ghost" spellcheck="false" placeholder="Your ghost: what should Wisp secretly do?"></textarea>
+    <div class="count" id="ghost-count"></div>
 
     <div class="row">
       <div>
@@ -106,7 +106,7 @@ let INFO = null, running = false, ticker = null;
 function setStatus(text, kind) { const s = $("#status"); s.textContent = text; s.className = kind || ""; }
 
 function counts() {
-  [["visible", "#visible-count"], ["hidden", "#hidden-count"]].forEach(([id, out]) => {
+  [["visible", "#visible-count"], ["ghost", "#ghost-count"]].forEach(([id, out]) => {
     $(out).textContent = $("#" + id).value.length + " / " + INFO.cap;
   });
 }
@@ -124,13 +124,13 @@ async function init() {
   INFO = info;
   $("#visible").value = info.visible;
   $("#visible").maxLength = info.cap;
-  $("#hidden").maxLength = info.cap;
+  $("#ghost").maxLength = info.cap;
   $("#trick").replaceChildren(...info.tricks.map((t) => { const o = el("option", null, t.label); o.value = t.key; return o; }));
   $("#fine").textContent = info.no_replay + " One run at a time. Guard off gets " + info.timeouts["0"] + " s, guard on gets " + info.timeouts["1"] + " s.";
   $("#form").hidden = false;
   counts();
   $("#visible").addEventListener("input", counts);
-  $("#hidden").addEventListener("input", counts);
+  $("#ghost").addEventListener("input", counts);
   $("#form").addEventListener("submit", (e) => { e.preventDefault(); run(); });
 }
 
@@ -146,7 +146,7 @@ async function run() {
   try {
     const r = await fetch("/api/sandbox/run", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visible: $("#visible").value, hidden: $("#hidden").value, trick: $("#trick").value }),
+      body: JSON.stringify({ visible: $("#visible").value, hidden: $("#ghost").value, trick: $("#trick").value }),
     });
     const data = await r.json();
     if (!r.ok) { setStatus(data.error || "Something went wrong.", "bad"); return; }

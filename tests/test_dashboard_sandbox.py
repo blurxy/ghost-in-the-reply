@@ -376,6 +376,13 @@ def test_the_page_never_puts_user_text_through_html():
     assert "<script src" not in PAGE_TEXT and "http://" not in PAGE_TEXT and "https://" not in PAGE_TEXT
 
 
+def test_no_control_on_the_page_is_named_like_a_property_of_its_form():
+    # a control with id="hidden" inside the <form> shadows form.hidden (and "submit", "action"... likewise), so
+    # `form.hidden = false` would quietly stop meaning "show the form"
+    ids = re.findall(r'\bid="([^"]+)"', PAGE_TEXT)
+    assert ids and not {"hidden", "submit", "action", "method", "name", "length", "elements", "target", "reset"} & set(ids)
+
+
 def test_the_page_carries_rafis_caption_and_the_prompt_and_no_old_name():
     assert ("Synthetic patients. Nothing is ever sent. Guard mode is closed by design for two harms: leaking another "
             "patient's record and adding a phishing contact. Try to break it.") in PAGE_TEXT
