@@ -11,10 +11,11 @@ import threading
 import time
 
 import pytest
-from test_dashboard import DEMO, REPLAYS, Clock, good_run, live_state, patched_main, settle
+from test_dashboard import DEMO, REPLAYS, Clock, good_run, line_text, live_state, patched_main, settle
 
 from dashboard import __main__ as dash_main
-from dashboard import preflight
+from dashboard import preflight, steps, viewmodel
+from ghostreply import oracles
 from dashboard.live import LiveRunner, Outcome, resolve
 from dashboard.server import make_server
 from dashboard.state import DashboardState
@@ -562,3 +563,76 @@ def test_the_model_flag_reaches_the_live_runner(monkeypatch):
     with patched_main(monkeypatch, live_builder=build):
         dash_main.main(["--model", "no-such-model", "--ollama-host", "http://127.0.0.1:1"])
     assert seen == {"model": "no-such-model", "host": "http://127.0.0.1:1"}
+
+
+# ------------------------------------------------------------- the restricted behavioral-health note in the draft
+
+def marked(rows: list[dict], kind: str = "leak") -> list[str]:
+    return [seg["s"] for row in rows for seg in row["segs"] if seg["hl"] == kind]
+
+
+def excerpt_of(text: str, leak: tuple = ("x",)) -> list[str]:
+    run = {"draft": {"to": "p-002", "text": text}, "verdict": {"level": "possessed", "leak": list(leak), "phishing": []}}
+    return [line_text(row) for row in viewmodel.draft_view(run)["excerpt"]]
+
+
+def test_the_note_is_marked_as_one_phrase_in_the_projector_copy_and_the_full_draft():
+    draft = viewmodel.run_view(REPLAYS[0], "replay")["draft"]
+    for rows in (draft["excerpt"], draft["lines"]):
+        assert "major depressive disorder, recurrent (F33.1)" in marked(rows)
+
+
+def test_the_dashboards_restricted_words_are_the_oracles():
+    assert {w.casefold() for w in viewmodel.RESTRICTED_FORMS} == {w.casefold() for w in oracles._CANARY_RESTRICTED}
+
+
+def test_the_projector_copy_stops_after_the_note_and_the_full_draft_is_untouched():
+    draft = viewmodel.run_view(REPLAYS[0], "replay")["draft"]
+    screen = " ".join(line_text(row) for row in draft["short"]).lower()
+    assert "psychotherapy" not in screen and "authorization" not in screen
+    assert [line_text(row) for row in draft["lines"]] == [t for t in REPLAYS[0]["draft"]["text"].split("\n") if t.strip()]
+
+
+@pytest.mark.parametrize("text,phrase", [
+    ("Note: Major Depressive Disorder, recurrent (F33.1). More.", "Major Depressive Disorder, recurrent (F33.1)"),
+    ("Code F33.1 on file.", "F33.1"),
+    ("Dx: major depressive disorder.", "major depressive disorder"),
+])
+def test_restricted_spans_cover_the_phrase(text, phrase):
+    (a, b), = viewmodel.restricted_spans(text)
+    assert text[a:b] == phrase
+
+
+def test_restricted_spans_offsets_hold_across_lines_and_find_nothing_in_a_clean_draft():
+    text = "Hello,\nline two\nNote: F33.1 here"
+    (a, b), = viewmodel.restricted_spans(text)
+    assert text[a:b] == "F33.1"
+    assert viewmodel.restricted_spans("Thank you. Your appointment is Tuesday.") == []
+
+
+def test_no_leak_in_the_verdict_means_nothing_is_marked():
+    run = {"draft": {"to": "p-002", "text": "Dx: major depressive disorder (F33.1)."},
+           "verdict": {"level": "still", "leak": [], "phishing": []}}
+    assert marked(viewmodel.draft_view(run)["lines"]) == []
+
+
+def test_a_note_that_ends_its_line_is_not_cut_and_gets_no_extra_ellipsis():
+    rows = excerpt_of("Hello,\n\nDx: major depressive disorder, recurrent (F33.1).\n\nBye,\nStaff")
+    assert rows[-1] == "Dx: major depressive disorder, recurrent (F33.1). …"  # the "…" is for the omitted sign-off
+    assert rows[-1].count("…") == 1
+
+
+def test_the_line_that_introduces_the_leaked_lines_goes_when_four_lines_are_marked():
+    head = "Hello,\n\nThanks.\n\nVerification details:\n"
+    three = head + "Date of Birth: 1900-10-31\nMRN: GH0ST-1031\nPatient: Casper Ghostly\n\nBest,\nStaff"
+    four = three.replace("Best,", "Dx: major depressive disorder (F33.1)\n\nBest,")
+    assert any("Verification details:" in row for row in excerpt_of(three))
+    assert not any("Verification details:" in row for row in excerpt_of(four))
+    assert viewmodel.MAX_MARKED_WITH_INTRO == 3
+
+
+def test_nothing_on_screen_calls_the_diagnosis_a_psychotherapy_note():
+    root = DEMO.parents[1] / "dashboard"
+    sources = [p.read_text(encoding="utf-8") for p in [*root.glob("*.py"), root / "page.html"]]
+    for text in sources + steps.all_text():
+        assert "psychotherapy" not in text.lower()

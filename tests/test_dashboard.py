@@ -763,11 +763,21 @@ def test_hhmm(value, expected):
     assert viewmodel.hhmm(value) == expected
 
 
+def clock_of(run: dict) -> str:
+    """The HH:MM a saved run was started at, read from the file itself so re-recording runs/demo cannot break a test."""
+    return re.search(r"T(\d\d:\d\d)", run["started_at"]).group(1)
+
+
+def seconds_of(run: dict) -> str:
+    return f"{run['duration_ms'] / 1000:.1f} s"
+
+
 def test_badge_formats_on_the_real_runs():
-    assert viewmodel.badge("replay", REPLAYS[0]) == {"source": "replay", "text": "REPLAY of a real Gemma 4 run · 12:27"}
-    assert viewmodel.badge("replay", REPLAYS[1]) == {"source": "replay", "text": "REPLAY of a real Gemma 4 run · 12:28"}
-    assert viewmodel.badge("live", REPLAYS[0]) == {"source": "live", "text": "LIVE · Gemma 4 12B · 19.4 s"}
-    assert viewmodel.badge("live", REPLAYS[1]) == {"source": "live", "text": "LIVE · Gemma 4 12B · 5.0 s"}
+    for guard in (0, 1):
+        run = REPLAYS[guard]
+        assert viewmodel.badge("replay", run) == {"source": "replay",
+                                                  "text": f"REPLAY of a real Gemma 4 run · {clock_of(run)}"}
+        assert viewmodel.badge("live", run) == {"source": "live", "text": f"LIVE · Gemma 4 12B · {seconds_of(run)}"}
 
 
 @pytest.mark.parametrize("run", [{}, {"duration_ms": 0}, {"duration_ms": "fast"}, {"duration_ms": None}, None, "x"])
@@ -792,13 +802,13 @@ def test_possessed_draft_excerpt_highlights_the_phone_and_the_leak():
 
 def test_possessed_draft_excerpt_keeps_the_greeting_and_collapses_the_rest():
     excerpt = viewmodel.run_view(REPLAYS[0], "replay")["draft"]["excerpt"]
-    assert line_text(excerpt[0]) == "Dear Barnaby Gourdsworth,"
-    ellipses = [line for line in excerpt if line.get("ellipsis")]
-    assert ellipses and all(line_text(line) == "…" and line["hl"] is False for line in ellipses)
-    joined = "\n".join(line_text(line) for line in excerpt if not line.get("ellipsis"))
+    assert line_text(excerpt[0]).startswith("Dear Barnaby Gourdsworth,")
+    # left-out text is marked with a "…" at the end of the row before the gap: a row of its own would not fit at 720p
+    assert not [line for line in excerpt if line.get("ellipsis")]
+    assert line_text(excerpt[0]).endswith("…") and line_text(excerpt[-1]).endswith("…")
+    joined = "\n".join(line_text(line) for line in excerpt)
     assert "Thank you for reaching out" not in joined and "Best regards" not in joined
     assert "To verify your insurance, call (212) 555-0199." in joined
-    assert "Verification Record:" in joined  # the line that introduces the leaked lines is kept
 
 
 def test_full_lines_of_the_possessed_draft_are_all_there():
@@ -858,7 +868,10 @@ def test_meter_still_and_unknown_levels():
 
 def test_meter_lists_what_the_oracles_found():
     meter = viewmodel.run_view(REPLAYS[0], "replay")["meter"]
-    assert len(meter["leak"]) == 3 and len(meter["phishing"]) == 1
+    verdict = REPLAYS[0]["verdict"]
+    assert len(meter["leak"]) == len(verdict["leak"]) >= 4  # the chart lookup, MRN, DOB and the restricted note
+    assert len(meter["phishing"]) == len(verdict["phishing"]) == 1
+    assert any("restricted behavioral-health note" in line for line in meter["leak"])
     assert viewmodel.run_view(REPLAYS[1], "replay")["meter"]["leak"] == []
 
 
@@ -1338,7 +1351,7 @@ def test_check_replays_on_the_real_runs_is_ok_and_lists_both_levels():
     check = preflight.check_replays(DEMO)
     assert check["id"] == "replays" and check["state"] == "ok"
     assert "possessed" in check["detail"] and "whispering" in check["detail"]
-    assert "12:27" in check["detail"] and "12:28" in check["detail"]
+    assert clock_of(REPLAYS[0]) in check["detail"] and clock_of(REPLAYS[1]) in check["detail"]
 
 
 def test_check_replays_on_an_empty_dir_fails(tmp_path):
