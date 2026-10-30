@@ -60,6 +60,7 @@ class DashboardState:
         self.demo_started: float | None = None
         self.note: str | None = None
         self.backup = Path(backup) if backup else None
+        self.sandbox = None  # dashboard.sandbox.Sandbox when a model is available (set by __main__), else None
         self.practice = practice
         self._practice_started = False
         self._reset_practice()

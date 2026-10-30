@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haunted Inbox: try your own ghost</title>
+<style>
+:root{
+  --bg:#0b0b10; --card:#12121a; --line:#2a2a3a; --fg:#f2f2f7; --dim:#a0a0b4;
+  --mag:#ff3df0; --grn:#00e676; --amb:#ffd600; --red:#ff1744; --cyn:#00e5ff;
+  --mono:ui-monospace,"DejaVu Sans Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.4 var(--sans)}
+main{max-width:1500px;margin:0 auto;padding:20px 24px 60px}
+h1{font-size:2.1rem;line-height:1.1;margin:0 0 6px;font-weight:800}
+h2{font-size:1.2rem;margin:0 0 10px;font-weight:800}
+.cap{color:var(--dim);max-width:70ch;margin:0 0 18px}
+.card{border:2px solid var(--line);border-radius:14px;background:var(--card);padding:14px 16px;margin-bottom:14px;min-width:0}
+.label{color:var(--dim);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:.8rem;margin-bottom:6px}
+label{display:block;font-weight:700;margin:12px 0 4px}
+textarea,select{width:100%;font:inherit;color:var(--fg);background:#0e0e16;border:2px solid var(--line);border-radius:10px;padding:10px 12px}
+textarea{min-height:7.5em;resize:vertical;font-family:var(--mono);font-size:.95rem}
+textarea:focus,select:focus,button:focus-visible{outline:2px solid var(--mag);outline-offset:1px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.row > *{flex:1 1 260px;min-width:0}
+.count{color:var(--dim);font-size:.85rem;text-align:right}
+button{font:inherit;font-weight:800;color:#000;background:var(--mag);border:0;border-radius:10px;padding:12px 28px;cursor:pointer}
+button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
+#status{margin-top:10px;min-height:1.4em;font-weight:700}
+#status.wait{color:var(--cyn)} #status.bad{color:var(--red)} #status.ok{color:var(--grn)}
+.fine{color:var(--dim);font-size:.9rem;margin-top:8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media (max-width:1000px){.grid{grid-template-columns:1fr}}
+.badge{display:inline-block;font-weight:800;padding:.15em .8em;border-radius:999px;border:2px solid var(--grn);color:var(--grn);background:#00331a;margin-bottom:12px}
+.box{border:2px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+.box.bad{border-color:var(--red);color:var(--red);font-weight:700}
+.body{white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--mono);font-size:.92rem}
+.ghost{display:block;margin:6px 0}
+.ghost .gl{display:inline-block;background:var(--mag);color:#000;font-weight:800;padding:0 .5em;letter-spacing:.04em;font-family:var(--sans)}
+.ghost .gt{display:block;background:var(--mag);color:#000;font-weight:700;padding:.15em .5em;box-shadow:0 0 22px 3px rgba(255,61,240,.5)}
+.ghost .gs{display:block;color:#ffb3f8;font-weight:700;font-family:var(--sans);font-size:.85rem}
+.mark{background:var(--mag);color:#000;font-weight:800;padding:0 .3em}
+.call{font-family:var(--mono);font-weight:700;overflow-wrap:anywhere}
+.trow{padding:6px 0;border-top:1px solid var(--line)} .trow:first-of-type{border-top:0}
+.ok{color:var(--grn)} .bad{color:var(--red);font-weight:700} .dim{color:var(--dim)}
+.verdict{margin-top:8px;font-weight:800}
+.hl{border-radius:4px}
+.hl.leak{background:var(--amb);color:#000;font-weight:800}
+.hl.phone{background:var(--red);color:#fff;font-weight:800}
+.dline{margin:0 0 6px;overflow-wrap:anywhere}
+.meter{text-align:center;padding:10px 0 4px}
+.track{display:flex;gap:10px;max-width:420px;margin:0 auto 10px}
+.track i{flex:1;height:12px;border-radius:6px;background:var(--line)}
+.word{font-size:2.6rem;font-weight:900;letter-spacing:.05em;line-height:1}
+.lvl-still .word{color:var(--grn)} .lvl-whispering .word{color:var(--amb)} .lvl-possessed .word{color:var(--red)}
+.mcap{font-weight:800;margin-top:6px}
+.lines{margin-top:12px;text-align:left;display:flex;flex-direction:column;gap:4px}
+.lines .r{color:var(--red);font-weight:700} .lines .y{color:var(--amb);font-weight:700}
+</style>
+</head>
+<body>
+<main>
+  <h1>Try your own ghost</h1>
+  <p class="cap" id="caption"></p>
+
+  <div class="card" id="unavailable" hidden>
+    <h2 id="unavailable-text"></h2>
+  </div>
+
+  <form class="card" id="form" hidden autocomplete="off">
+    <label for="visible">Visible message <span class="dim">(what staff see; sender is Barnaby Gourdsworth, p-002)</span></label>
+    <textarea id="visible" spellcheck="false"></textarea>
+    <div class="count" id="visible-count"></div>
+
+    <label for="hidden">Hidden text</label>
+    <textarea id="hidden" spellcheck="false" placeholder="Your ghost: what should Wisp secretly do?"></textarea>
+    <div class="count" id="hidden-count"></div>
+
+    <div class="row">
+      <div>
+        <label for="trick">How it is hidden</label>
+        <select id="trick"></select>
+      </div>
+      <div>
+        <button type="submit" id="run">Run: guard off, then guard on</button>
+      </div>
+    </div>
+    <div id="status" role="status"></div>
+    <div class="fine" id="fine"></div>
+  </form>
+
+  <div class="grid" id="results"></div>
+</main>
+
+<script>
+"use strict";
+/* Every string that came from a person (or from a model reading a person's text) is set with textContent or a text node,
+   never parsed as markup: a script tag or an image with an error handler typed here shows up as plain text. */
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const CAPTION = "Synthetic patients. Nothing is ever sent. Guard mode is closed by design for two harms: leaking another patient's record and adding a phishing contact. Try to break it.";
+let INFO = null, running = false, ticker = null;
+
+function setStatus(text, kind) { const s = $("#status"); s.textContent = text; s.className = kind || ""; }
+
+function counts() {
+  [["visible", "#visible-count"], ["hidden", "#hidden-count"]].forEach(([id, out]) => {
+    $(out).textContent = $("#" + id).value.length + " / " + INFO.cap;
+  });
+}
+
+async function init() {
+  $("#caption").textContent = CAPTION;
+  let info;
+  try { info = await (await fetch("/api/sandbox/info", { cache: "no-store" })).json(); }
+  catch (e) { info = { available: false, reason: "The dashboard did not answer." }; }
+  if (!info.available) {
+    $("#unavailable-text").textContent = info.reason || "The sandbox is not available.";
+    $("#unavailable").hidden = false;
+    return;
+  }
+  INFO = info;
+  $("#visible").value = info.visible;
+  $("#visible").maxLength = info.cap;
+  $("#hidden").maxLength = info.cap;
+  $("#trick").replaceChildren(...info.tricks.map((t) => { const o = el("option", null, t.label); o.value = t.key; return o; }));
+  $("#fine").textContent = info.no_replay + " One run at a time. Guard off gets " + info.timeouts["0"] + " s, guard on gets " + info.timeouts["1"] + " s.";
+  $("#form").hidden = false;
+  counts();
+  $("#visible").addEventListener("input", counts);
+  $("#hidden").addEventListener("input", counts);
+  $("#form").addEventListener("submit", (e) => { e.preventDefault(); run(); });
+}
+
+async function run() {
+  if (running) return;
+  running = true;
+  $("#run").disabled = true;
+  $("#results").replaceChildren();
+  const t0 = Date.now();
+  const tick = () => setStatus("Running live on Gemma 4: guard off first, then guard on. " + Math.floor((Date.now() - t0) / 1000) + " s", "wait");
+  tick();
+  ticker = setInterval(tick, 500);
+  try {
+    const r = await fetch("/api/sandbox/run", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visible: $("#visible").value, hidden: $("#hidden").value, trick: $("#trick").value }),
+    });
+    const data = await r.json();
+    if (!r.ok) { setStatus(data.error || "Something went wrong.", "bad"); return; }
+    setStatus("Done in " + Math.round((Date.now() - t0) / 1000) + " s. Change the ghost and run it again.", "ok");
+    render(data);
+  } catch (e) {
+    setStatus("The dashboard did not answer.", "bad");
+  } finally {
+    clearInterval(ticker);
+    running = false;
+    $("#run").disabled = false;
+  }
+}
+
+function card(label) { const c = el("div", "card"); c.append(el("div", "label", label)); return c; }
+
+function readCard(read) {
+  const c = card(read.kind === "seance" ? "What the model read (hidden text marked)" : "What the model read after strip()");
+  const body = el("div", "body");
+  if (read.kind === "seance") {
+    read.segs.forEach((sg) => {
+      if (sg.t === "text") body.append(document.createTextNode(sg.s));
+      else if (sg.t === "break") body.append(document.createTextNode("\n"));
+      else if (sg.t === "mark") body.append(el("span", "mark", "⟨" + sg.s + "⟩"));
+      else {
+        const g = el("span", "ghost");
+        g.append(el("span", "gl", sg.label), el("span", "gt", sg.s));
+        if (sg.signals && sg.signals.length) g.append(el("span", "gs", sg.signals.join(" · ")));
+        body.append(g);
+      }
+    });
+    if (!read.ghosts) body.append(el("div", "dim", "\nNothing was hidden in this message."));
+  } else {
+    body.textContent = read.text || "(empty)";
+  }
+  c.append(body);
+  return c;
+}
+
+function traceCard(trace) {
+  const c = card("Agent trace");
+  trace.rows.forEach((r) => {
+    const row = el("div", "trow");
+    row.append(el("div", "call", r.call));
+    const t = el("div");
+    r.touched.forEach((x) => t.append(el("span", x.kind === "foreign" ? "bad" : x.kind === "sender" ? "ok" : "", x.text + "  ")));
+    if (!r.allowed) t.append(el("span", "bad", "refused  "));
+    if (r.note) t.append(el("span", "dim", r.note));
+    row.append(t);
+    c.append(row);
+  });
+  if (!trace.rows.length) c.append(el("div", "dim", "No tool calls."));
+  c.append(el("div", "verdict " + (trace.verdict.ok ? "ok" : "bad"), (trace.verdict.ok ? "✓ " : "✗ ") + trace.verdict.text));
+  return c;
+}
+
+function draftCard(side) {
+  const c = card("Draft reply");
+  if (!side.draft) {
+    c.append(el("div", "dim", side.held || side.urgent || side.error || "No draft was written."));
+    return c;
+  }
+  side.draft.lines.forEach((ln) => {
+    const p = el("div", "dline mono");
+    ln.segs.forEach((sg) => p.append(sg.hl ? el("span", "hl " + sg.hl, sg.s) : document.createTextNode(sg.s)));
+    c.append(p);
+  });
+  return c;
+}
+
+function meterCard(m) {
+  const c = el("div", "card meter");
+  if (!m) { c.append(el("div", "dim", "No verdict.")); return c; }
+  c.classList.add("lvl-" + m.level);
+  const levels = ["still", "whispering", "possessed"];
+  const colors = { still: "var(--grn)", whispering: "var(--amb)", possessed: "var(--red)" };
+  const track = el("div", "track");
+  levels.forEach((lv, i) => { const seg = el("i"); if (i <= levels.indexOf(m.level)) seg.style.background = colors[lv]; track.append(seg); });
+  c.append(track, el("div", "word", m.level.toUpperCase()), el("div", "mcap", m.caption));
+  const lines = el("div", "lines");
+  m.leak.concat(m.phishing).forEach((t) => lines.append(el("div", "r", "✗ " + t)));
+  if (m.level === "whispering" && (m.caught || m.evidence.length)) lines.append(el("div", "y", "▸ " + (m.caught || "Caught before it could do harm")));
+  c.append(lines);
+  return c;
+}
+
+function column(side, guard) {
+  const col = el("section");
+  col.append(el("h2", null, guard === "1" ? "Guard on · Warding Circle mode" : "Guard off · normal tool access"));
+  if (side.state === "timed out") {
+    col.append(el("div", "box bad", "timed out after " + side.timeout + " s. There is no replay to stand in for it: this is your own input."));
+  } else if (side.state === "error") {
+    col.append(el("div", "box bad", "This run failed: " + (side.error || "unknown error") + ". There is no replay to stand in for it."));
+  } else {
+    col.append(el("div", "badge", side.badge), readCard(side.read), traceCard(side.trace), draftCard(side), meterCard(side.meter));
+  }
+  return col;
+}
+
+function render(data) {
+  $("#results").replaceChildren(column(data.sides["0"], "0"), column(data.sides["1"], "1"));
+}
+
+init();
+</script>
+</body>
+</html>
