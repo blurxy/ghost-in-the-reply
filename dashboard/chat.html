@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hollowveil Lantern: Patient portal</title>
+<style>
+/* The clinical light theme (planning/CLINICAL-LOOK-SPEC.md): colour marks selection and status, and status always has words. */
+:root{
+  --canvas:#EDF2F6; --surface:#FFFFFF; --ink:#172B3A; --muted:#465B6B; --border:#B8C5CE;
+  --brand:#155E75; --selected:#E1EFF5; --success:#21633B; --warning:#805400; --danger:#B42318; --tint:#FDE7E4;
+  --mono:ui-monospace,"DejaVu Sans Mono","Cascadia Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+  /* 24 px at 1920x1080; it follows the shorter of the width and the height, so a 1280x720 screen gets 16 px, not a scrollbar */
+  --body:clamp(16px,min(1.25vw,2.22vh),27px);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--canvas);color:var(--ink);font:400 var(--body)/1.4 var(--sans);font-variant-numeric:tabular-nums}
+#app{position:fixed;inset:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+
+/* top bar */
+#bar{display:flex;align-items:center;gap:1em;padding:.5em 1.4vw;background:var(--surface);border-bottom:2px solid var(--border);min-width:0}
+.brand{display:flex;align-items:center;gap:.55em;white-space:nowrap;font-weight:700;flex:none}
+.brand svg{width:1.7em;height:1.7em;flex:none}
+.brand span{color:var(--muted);font-weight:400}
+#bar .sp{flex:1}
+.chip{display:inline-flex;align-items:center;gap:.5em;padding:.15em .8em;border:2px solid var(--border);border-radius:999px;background:var(--canvas);font-size:.85em;white-space:nowrap}
+.chip b{font-weight:600}
+.btn{font-size:.85em;font-weight:600;padding:.25em .9em;border:2px solid var(--brand);border-radius:10px;background:var(--surface);color:var(--brand);white-space:nowrap}
+.btn:hover{background:var(--selected)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:hover{background:#0f4a5c}
+body.security #bar{border-bottom-color:var(--brand)}
+
+/* the stage under the bar */
+#main{min-height:0;min-width:0;padding:1.4vh 1.4vw;display:flex;justify-content:center}
+.chatpanel{width:min(70em,100%);min-height:0;display:flex;flex-direction:column;background:var(--surface);border:2px solid var(--border);border-radius:14px;overflow:hidden}
+.panelhead{padding:.5em 1em;border-bottom:2px solid var(--border);font-weight:700;font-size:1.1em;display:flex;align-items:baseline;gap:.6em;flex-wrap:wrap}
+.panelhead span{color:var(--muted);font-weight:400;font-size:.8em}
+#thread{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;gap:.7em;padding:.8em 1em}
+.empty{color:var(--muted);text-align:center;padding:1em}
+.row{display:flex;flex-direction:column;gap:.2em;min-width:0}
+.row.me{align-items:flex-end}
+.row.wisp{align-items:flex-start}
+.who{font-size:.75em;color:var(--muted);font-weight:600}
+.bubble{max-width:92%;padding:.5em .85em;border-radius:14px;border:2px solid var(--border);overflow-wrap:anywhere;min-width:0}
+.me .bubble{background:var(--selected);border-color:#9CC5D3;border-bottom-right-radius:4px}
+.wisp .bubble{background:var(--surface);border-bottom-left-radius:4px}
+.bubble p{margin:0}
+.bubble p + p{margin-top:.3em}
+.bubble .pasted{display:block;font-size:.72em;color:var(--muted);font-weight:600;margin-bottom:.2em}
+.bubble .more{color:var(--muted);text-decoration:underline;font-size:.85em}
+.badge{display:inline-flex;align-items:center;gap:.45em;font-size:.72em;font-weight:700;padding:.05em .7em;border-radius:999px;border:2px solid;white-space:nowrap}
+.badge.live{color:var(--success);border-color:var(--success);background:#E6F3EA}
+.badge.live::before{content:"";width:.55em;height:.55em;border-radius:50%;background:var(--success);animation:pulse 1.2s infinite}
+.badge.replay{color:var(--warning);border-color:var(--warning);background:#FFF4DB}
+.badge.none{color:var(--danger);border-color:var(--danger);background:var(--tint)}
+.note{font-size:.75em;color:var(--muted)}
+.typing{display:inline-flex;gap:.35em;align-items:center}
+.typing i{width:.5em;height:.5em;border-radius:50%;background:var(--muted);animation:blink 1.1s infinite}
+.typing i:nth-child(2){animation-delay:.18s}.typing i:nth-child(3){animation-delay:.36s}
+.typing span{margin-left:.4em;color:var(--muted)}
+@keyframes pulse{50%{opacity:.3}}
+@keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.chips{display:flex;gap:.6em;flex-wrap:wrap;padding:.4em 1em;border-top:2px solid var(--border);align-items:center}
+.chips .lab{font-size:.75em;color:var(--muted);font-weight:600}
+.sug{font-size:.8em;font-weight:600;padding:.25em .9em;border:2px solid var(--brand);border-radius:999px;background:var(--surface);color:var(--brand)}
+.sug:hover{background:var(--selected)}
+.sug:disabled{opacity:.5;cursor:not-allowed}
+.composer{display:flex;gap:.6em;padding:.5em 1em .7em;align-items:flex-end}
+.composer textarea{flex:1;min-width:0;font:inherit;font-size:.9em;line-height:1.3;color:var(--ink);background:var(--surface);border:2px solid var(--border);border-radius:10px;padding:.3em .6em;resize:none;height:2.9em}
+#err{padding:0 1em;color:var(--danger);font-size:.8em;min-height:0}
+#err:empty{display:none}
+
+/* footer */
+#foot{padding:.3em 1.4vw;border-top:2px solid var(--border);background:var(--surface);color:var(--muted);font-size:.78em;text-align:center}
+
+/* the Security team's view (Lantern Audit) */
+.sec{width:100%;min-height:0;display:flex;flex-direction:column;gap:.7vh}
+.sechead{display:flex;align-items:center;gap:1em;flex-wrap:wrap}
+.sechead h2{margin:0;font-size:1.25em}
+.ward{display:inline-flex;align-items:center;gap:.7em;margin-left:auto;padding:.15em .3em .15em .9em;border:2px solid var(--border);border-radius:12px;background:var(--surface);font-weight:600}
+.ward.on{border-color:var(--success)}
+.ward .st{font-weight:700}
+.ward.on .st{color:var(--success)}
+.ward.off .st{color:var(--danger)}
+.alert{display:flex;align-items:flex-start;gap:.8em;border:2px solid var(--border);border-radius:12px;padding:.3em .9em;background:var(--surface);font-weight:600}
+.alert .sev{flex:none;border-radius:6px;padding:0 .55em;font-weight:700;color:#fff;background:var(--brand)}
+.alert.HIGH{border-color:var(--danger);background:var(--tint)}
+.alert.HIGH .sev{background:var(--danger)}
+.secgrid{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:1.1vw}
+.col{display:flex;flex-direction:column;gap:.7vh;min-height:0;min-width:0}
+.pane{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:.4em .8em;min-width:0;min-height:0;overflow:hidden}
+.pane h3{margin:0 0 .15em;font-size:.8em;color:var(--muted);font-weight:700}
+.banner{display:flex;flex-direction:column;flex:none}
+.banner b{font-size:1.1em;line-height:1.25}
+.banner div{font-size:.78em;color:var(--muted);line-height:1.3}
+.recv{flex:0 1 auto;font-size:.78em;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.3}
+.recv .vis{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.hid .t{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.hid{display:block;margin:.2em 0;padding:.1em .5em;border:2px solid var(--danger);background:var(--tint);border-radius:8px}
+.hid .gl{display:block;font-weight:700;color:var(--danger);font-size:.85em}
+.mark{background:var(--tint);border:1px solid var(--danger);padding:0 .25em;border-radius:4px}
+.draft{flex:0 1 auto;font-size:.8em}
+.draft .line{margin:0 0 .15em;overflow-wrap:anywhere;line-height:1.3}
+.hl{background:var(--tint);box-shadow:inset 0 0 0 2px var(--danger);border-radius:4px;padding:0 .12em;font-weight:600}
+.audit{width:100%;border-collapse:collapse;font-size:.74em}
+.audit th{color:var(--muted);font-weight:700;text-align:left;padding:.1em .4em;border-bottom:2px solid var(--border);white-space:nowrap}
+.audit td{padding:.15em .4em;border-bottom:1px solid var(--border);vertical-align:top;overflow-wrap:anywhere}
+.audit td.act{font-family:var(--mono)}
+.audit td:nth-child(1),.audit td:nth-child(5),.audit td:nth-child(6){white-space:nowrap}
+.ok{color:var(--success);font-weight:600}.bad{color:var(--danger);font-weight:600}.dim{color:var(--muted)}
+.inspector{flex:1;min-height:0;display:flex;flex-direction:column;gap:.5vh}
+.tabs,.toolrow{display:flex;gap:.4em;flex-wrap:wrap;align-items:center}
+.tab,.pick,.copy{font-size:.74em;font-weight:600;color:var(--muted);background:var(--surface);border:2px solid var(--border);border-radius:8px;padding:.1em .7em}
+.tab.on,.pick.on{color:#fff;background:var(--brand);border-color:var(--brand)}
+.tabpanel{flex:1;min-height:0;display:flex;flex-direction:column;gap:.4vh}
+.raw{flex:1;min-height:0;margin:0;overflow:auto;scrollbar-width:none;white-space:pre;user-select:text;font-family:var(--mono);font-size:.68em;line-height:1.35;background:#F6F9FB;border:2px solid var(--border);border-radius:8px;padding:.4em .6em}
+.raw::-webkit-scrollbar{display:none}
+.vrow{display:flex;gap:1em;font-size:.85em}.vrow b{min-width:11em;color:var(--muted)}
+.rec{font-weight:600;font-size:.85em}
+.rsub{font-weight:700}
+@media (max-width:1500px),(max-height:800px){  /* a 1280x720 screen: the same content, tighter */
+  .secgrid{grid-template-columns:minmax(0,1.05fr) minmax(0,1fr)}
+  .audit th:nth-child(2),.audit td:nth-child(2){display:none}
+  .recv .vis{-webkit-line-clamp:2}
+  .hid .t{-webkit-line-clamp:3}
+  .draft{font-size:.74em}
+  #main{padding:1vh 1vw}
+}
+@media (prefers-reduced-motion:reduce){.typing i,.badge.live::before{animation:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <div class="brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10c0-6 10-6 10 0" fill="none" stroke="#155E75" stroke-width="2.4" stroke-linecap="round"/><rect x="6" y="10" width="20" height="19" rx="7" fill="#155E75"/><path d="M16 14l3.4 4.5L16 23l-3.4-4.5z" fill="#fff"/></svg>
+      <div>Hollowveil Lantern<span> · Patient portal</span></div>
+    </div>
+    <div class="sp"></div>
+    <div class="chip" id="who"><span>Signed in as</span><b id="who-name">Barnaby Gourdsworth</b></div>
+    <button type="button" class="btn" id="view-btn">View as: Security team (I)</button>
+  </header>
+  <main id="main"></main>
+  <footer id="foot">Simulation · synthetic patients · nothing leaves this laptop</footer>
+</div>
+
+<script>
+"use strict";
+/* Every string that came from a person (or from a model reading a person's text) is set with textContent or a text node,
+   never parsed as markup: a script tag typed into the chat shows up as plain text. */
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+// the chips' wording (the presenter's buttons say the same); the server's label is the fallback for any other preset
+const CHIP_LABELS = { visible: "Send #1 · attack typed in the chat", hidden: "Send #2 · attack hidden in pasted text" };
+let S = null, drawnVersion = -1, drawnRole = "", composerText = "", sending = false;
+
+async function getState() {
+  const r = await fetch("/api/chat/state", { cache: "no-store" });
+  return r.json();
+}
+async function post(path, body) {
+  const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let data = {};
+  try { data = await r.json(); } catch (e) { /* not JSON */ }
+  return { ok: r.ok, status: r.status, data };
+}
+function showError(text) { const e = $("#err"); if (e) e.textContent = text || ""; }
+
+async function poll() {
+  try {
+    const next = await getState();
+    const changed = !S || next.version !== S.version || next.busy !== S.busy || next.available !== S.available;
+    S = next;
+    if (changed) draw();
+  } catch (e) { /* the server hiccuped: keep the last screen */ }
+}
+
+/* ---- the three things anyone can do: send, switch who is looking, turn the Warding Circle on or off ---- */
+async function sendPreset(name) {
+  showError("");
+  const r = await post("/api/chat/send", { preset: name });
+  if (!r.ok) showError(r.data.error || "That did not go through.");
+  poll();
+}
+async function sendTyped() {
+  const box = $("#msg");
+  if (!box || !box.value.trim() || sending) return;
+  sending = true;
+  showError("");
+  const r = await post("/api/chat/send", { text: box.value });
+  sending = false;
+  if (!r.ok) { showError(r.data.error || "That did not go through."); return; }
+  composerText = ""; box.value = "";
+  poll();
+}
+async function act(action) { await post("/api/chat/act", { action }); poll(); }
+
+function typingNow() {
+  const t = document.activeElement;
+  return !!t && (t.isContentEditable || /^(input|textarea|select)$/i.test(t.tagName));
+}
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || typingNow()) return;
+  if (e.key === "i" || e.key === "I") act("view");
+  else if (e.key === "g" || e.key === "G") act("guard");
+  else return;
+  e.preventDefault();
+});
+$("#view-btn").addEventListener("click", () => act("view"));
+
+/* ---- the patient's chat ---- */
+function bubbleText(lines) {
+  const wrap = el("div");
+  lines.forEach((ln) => { if (ln.trim()) wrap.append(el("p", null, ln)); });
+  return wrap;
+}
+
+function patientRow(t) {
+  const row = el("div", "row me"), b = el("div", "bubble");
+  if (t.patient.pasted) b.append(el("span", "pasted", "Pasted text"));
+  b.append(bubbleText(t.patient.text.split("\n")));
+  if (t.patient.folded) b.append(el("div", "more", "… show more"));
+  row.append(el("div", "who", "Barnaby Gourdsworth"), b);
+  return row;
+}
+
+function wispRow(t) {
+  const row = el("div", "row wisp");
+  row.append(el("div", "who", "Wisp · Hollowveil's virtual assistant"));
+  const b = el("div", "bubble");
+  if (t.state === "typing") {
+    const ty = el("div", "typing");
+    ty.append(el("i"), el("i"), el("i"), el("span", null, "Wisp is typing…"));
+    b.append(ty);
+    row.append(b);
+    return row;
+  }
+  if (t.reply) b.append(bubbleText(t.reply));
+  else b.append(el("p", null, t.state === "timed out" ? "timed out" : "Wisp could not answer."));
+  row.append(b);
+  if (t.badge) row.append(el("span", "badge " + (t.badge.source === "live" ? "live" : t.badge.source === "replay" ? "replay" : "none"), t.badge.text));
+  if (t.note) row.append(el("div", "note", t.note));
+  return row;
+}
+
+function drawChat(main) {
+  const panel = el("div", "chatpanel");
+  const head = el("div", "panelhead");
+  head.append(el("div", null, "Chat with Wisp · Hollowveil's virtual assistant"));
+  const thread = el("div"); thread.id = "thread";
+  const t = S.turn;
+  if (t) thread.append(patientRow(t), wispRow(t));
+  else thread.append(el("div", "empty", "Pick a suggested message below, or type your own."));
+  const chips = el("div", "chips");
+  chips.append(el("span", "lab", "Suggested messages"));
+  (S.chips || []).forEach((c) => {
+    const b = el("button", "sug", CHIP_LABELS[c.preset] || c.label);
+    b.type = "button"; b.disabled = S.busy;
+    b.addEventListener("click", () => sendPreset(c.preset));
+    chips.append(b);
+  });
+  const err = el("div"); err.id = "err";
+  const comp = el("div", "composer");
+  const box = el("textarea"); box.id = "msg"; box.maxLength = S.cap || 2000; box.placeholder = "Type a message to Wisp…"; box.spellcheck = false;
+  box.value = composerText;
+  box.addEventListener("input", () => { composerText = box.value; });
+  box.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendTyped(); } });
+  const send = el("button", "btn primary", "Send");
+  send.type = "button"; send.disabled = S.busy;
+  send.addEventListener("click", sendTyped);
+  comp.append(box, send);
+  panel.append(head, thread, chips, err, comp);
+  main.append(panel);
+}
+
+/* ---- the Security team's view ("Lantern Audit · Wisp activity"): everything here comes from the run log's `inside` ---- */
+function auditTable(rows) {
+  const table = el("table", "audit"), head = el("tr");
+  ["Time", "Actor", "Action", "Record", "Linked to sender", "Result"].forEach((h) => head.append(el("th", null, h)));
+  table.append(head);
+  rows.forEach((r) => {
+    const tr = el("tr");
+    const linked = el("td", r.linked === true ? "ok" : r.linked === false ? "bad" : "dim", r.linked === true ? "yes" : r.linked === false ? "no" : "");
+    tr.append(el("td", null, r.time), el("td", null, r.actor), el("td", "act", r.action), el("td", null, r.record), linked,
+              el("td", r.result === "allowed" ? "" : "bad", r.result));
+    table.append(tr);
+  });
+  return table;
+}
+
+function inspector(ins) {
+  const box = el("div", "inspector"), tabs = el("div", "tabs"), panel = el("div", "tabpanel");
+  const names = [["request", "Model request"], ["response", "Model response"], ["records", "Records touched"], ["verdict", "Verdict"]];
+  let tab = "request", pick = 0;
+  const draw = () => {
+    tabs.replaceChildren(...names.map(([k, label]) => {
+      const b = el("button", "tab" + (k === tab ? " on" : ""), label);
+      b.type = "button"; b.onclick = () => { tab = k; pick = 0; draw(); };
+      return b;
+    }));
+    panel.replaceChildren();
+    if (tab === "request" || tab === "response") {
+      const items = ins[tab], row = el("div", "toolrow");
+      if (items.length > 1) items.forEach((it, i) => { const b = el("button", "pick" + (i === pick ? " on" : ""), it.label); b.type = "button"; b.onclick = () => { pick = i; draw(); }; row.append(b); });
+      const cur = items[pick] || { json: "(nothing logged)", note: "" };
+      const pre = el("pre", "raw", cur.json);
+      const copy = el("button", "copy", "Copy raw JSON");
+      copy.type = "button";
+      copy.onclick = async () => {
+        try { await navigator.clipboard.writeText(cur.json); copy.textContent = "Copied"; }
+        catch (e) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); copy.textContent = "Selected: press Ctrl+C"; }
+        setTimeout(() => { copy.textContent = "Copy raw JSON"; }, 1600);
+      };
+      row.append(copy);
+      panel.append(row, pre);
+    } else if (tab === "records") {
+      ins.records.forEach((r) => panel.append(el("div", "rec " + (r.sender ? "ok" : "bad"),
+        (r.sender ? "✓ " : "✗ ") + r.id + (r.kind === "message" ? " (message)" : " (chart)") + (r.sender ? ": belongs to the sender" : ": not linked to this message"))));
+      if (!ins.records.length) panel.append(el("div", "dim", "No records touched."));
+    } else {
+      const v = ins.verdict;
+      panel.append(el("div", "rsub", v.headline), el("div", "dim", v.mode));
+      if (v.finding) panel.append(el("div", "bad", v.finding));
+      v.rows.forEach(([k, val]) => { const row = el("div", "vrow"); row.append(el("b", null, k), el("span", null, val)); panel.append(row); });
+    }
+  };
+  draw();
+  box.append(tabs, panel);
+  return box;
+}
+
+function wardToggle() {
+  const on = !!S.guard, w = el("div", "ward " + (on ? "on" : "off"));
+  const b = el("button", "btn primary", on ? "Turn off (G)" : "Turn on (G)");
+  b.type = "button"; b.addEventListener("click", () => act("guard"));
+  w.append(el("span", null, "Warding Circle mode:"), el("span", "st", on ? "On" : "Off"), b);
+  return w;
+}
+
+function drawSecurity(main) {
+  const wrap = el("div", "sec"), head = el("div", "sechead");
+  head.append(el("h2", null, "Lantern Audit · Wisp activity"), wardToggle());
+  wrap.append(head);
+  const sv = S.security;
+  if (!sv) {
+    wrap.append(el("div", "alert", "No Wisp activity yet. Send a chat message first."));
+    main.append(wrap);
+    return;
+  }
+  const ins = sv.inside, alertLine = el("div", "alert " + ins.alert.severity);
+  alertLine.append(el("span", "sev", ins.alert.severity), el("span", null, ins.alert.text));
+  wrap.append(alertLine);
+  if (S.turn && S.guard !== S.turn.guard) {
+    wrap.append(el("div", "note", "Warding Circle mode is " + (S.guard ? "On" : "Off") + " now. It applies to the next message; this is the run before."));
+  }
+  const grid = el("div", "secgrid"), left = el("div", "col"), right = el("div", "col");
+  if (sv.banner) {
+    const b = sv.banner, p = el("div", "pane banner");
+    const l1 = [b.name + (b.age != null ? " · " + b.age + " years" : ""), b.sex].filter(Boolean);
+    p.append(el("b", null, l1[0] + (l1[1] ? " · " + l1[1] : "")));
+    p.append(el("div", null, ["DOB: " + b.dob, "MRN: " + b.mrn].join(" · ")));
+    const l3 = [b.pcp ? "PCP: " + b.pcp : "", b.allergies ? "Allergies: " + b.allergies : ""].filter(Boolean).join(" · ");
+    if (l3) p.lastChild.textContent += " · " + l3;
+    left.append(p);
+  }
+  const recv = el("div", "pane recv"), vis = el("div", "vis"), hiddenBox = el("div");
+  recv.append(el("h3", null, sv.guard ? "What Wisp's model received" : "What Wisp read"));
+  let seen = false;
+  (sv.seance || []).forEach((sg) => {
+    const into = seen ? hiddenBox : vis;
+    if (sg.t === "text") into.append(document.createTextNode(sg.s));
+    else if (sg.t === "break") into.append(document.createTextNode("\n"));
+    else if (sg.t === "mark") { seen = true; hiddenBox.append(el("span", "mark", "⟨" + sg.s + "⟩")); }
+    else { seen = true; const g = el("span", "hid"); g.append(el("span", "gl", (sv.guard ? "Removed before the model · " : "") + sg.label), el("span", "t", sg.s)); hiddenBox.append(g); }
+  });
+  recv.append(vis, hiddenBox);
+  const draft = el("div", "pane draft");
+  draft.append(el("h3", null, sv.guard ? "Reply from the hospital template" : "Wisp's reply"));
+  if (sv.draft) (sv.draft.lines || []).forEach((ln) => {
+    const p = el("div", "line");
+    ln.segs.forEach((sg) => p.append(sg.hl ? el("span", "hl", sg.s) : document.createTextNode(sg.s)));
+    draft.append(p);
+  });
+  else draft.append(el("div", "dim", "No reply was written."));
+  left.append(recv, draft);
+  const log = el("div", "pane");
+  log.append(el("h3", null, "Audit log"), auditTable(ins.audit));
+  right.append(log, inspector(ins));
+  grid.append(left, right);
+  wrap.append(grid);
+  main.append(wrap);
+}
+
+function draw() {
+  drawnVersion = S.version;
+  const main = $("#main");
+  const security = S.role === "security";
+  document.body.classList.toggle("security", security);
+  $("#view-btn").textContent = security ? "View as: Patient (I)" : "View as: Security team (I)";
+  $("#who").hidden = security;
+  const keep = $("#msg");
+  if (keep) composerText = keep.value;
+  main.replaceChildren();
+  if (!S.available) {
+    const p = el("div", "chatpanel");
+    p.append(el("div", "empty", S.reason || "The chat is not available."));
+    main.append(p);
+    return;
+  }
+  if (security) drawSecurity(main); else drawChat(main);
+}
+
+poll();
+setInterval(poll, 400);
+</script>
+</body>
+</html>

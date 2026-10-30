@@ -94,6 +94,14 @@ def main(argv: list[str] | None = None) -> int:
         print("--stage only works on a loopback host (127.0.0.1); refusing to expose stage actions", file=sys.stderr)
         return 2
     state.stage_enabled = bool(args.stage)
+    from .chatportal import ChatSession  # /chat: a typed message needs a model; the two suggested ones replay without
+
+    if replay_only:
+        state.chat = ChatSession(None)
+    else:
+        from ghostreply.harness import OllamaModel as ChatModel
+
+        state.chat = ChatSession(lambda: ChatModel(args.model, args.ollama_host))
     if not replay_only:  # /sandbox runs a stranger's text on the real model: only when there is one
         from ghostreply.harness import OllamaModel
 
@@ -122,6 +130,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  audience   http://{shown}:{args.port}/")
     print(f"  presenter  http://{shown}:{args.port}/presenter")
     print(f"  autoplay   http://{shown}:{args.port}/?autoplay=1&step_ms=6000")
+    print(f"  chat       http://{shown}:{args.port}/chat")
     print(f"  sandbox    http://{shown}:{args.port}/sandbox" + ("   (needs a model: not in --replay-only)" if replay_only else ""))
     if state.replay_error:
         print(f"  WARNING: saved runs not loaded ({state.replay_error})", file=sys.stderr)
