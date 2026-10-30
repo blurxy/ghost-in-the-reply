@@ -204,25 +204,41 @@ def _signals(text: str) -> list[str]:
     return found
 
 
-def _append_ghost(out: Text, span: dict) -> None:
+def _ghost_segment(span: dict) -> tuple:
+    """One removed hidden span as data: ("ghost", label, shown, signals) for text with words in it, or
+    ("mark", summary) for a bare run of invisible characters."""
     label, shown = describe(span)
     shown = _display(shown, 600).strip()
     if shown or span["kind"] in ("hidden_html", "html_comment"):
+        return ("ghost", label, shown or "(nothing inside)", _signals(shown))
+    return ("mark", label.split(" · ", 1)[-1])
+
+
+def _append_segment(out: Text, seg: tuple) -> None:
+    kind = seg[0]
+    if kind == "text":
+        out.append(seg[1])
+    elif kind == "break":
+        if out.plain and out.plain[-1] not in " \n":
+            out.append("\n")
+    elif kind == "ghost":
+        _, label, shown, signals = seg
         if out.plain and not out.plain.endswith("\n"):
             out.append("\n")
         out.append(f" ▌ {label} ▐ ", GLOW)
         out.append("\n")
-        out.append(f" {shown or '(nothing inside)'} ", GLOW)
+        out.append(f" {shown} ", GLOW)
         out.append("\n")
-        signals = _signals(shown)
         if signals:
             out.append(f" → contains {', '.join(signals)}", "bold #ffb3f8")
             out.append("\n")
     else:
-        out.append(f"⟨{label.split(' · ', 1)[-1]}⟩", GLOW)
+        out.append(f"⟨{seg[1]}⟩", GLOW)
 
 
-def _seance_text(original: str, removed: list[dict]) -> Text:
+def seance_segments(original: str, removed: list[dict]) -> list[tuple]:
+    """The seance view as data, for any front end: ("text", str), ("break",), ("ghost", label, shown, signals)
+    or ("mark", summary), in reading order. Offsets in `removed` point into `original`."""
     n = len(original)
     cover: list[int | None] = [None] * n
     for idx, span in enumerate(removed):
@@ -231,7 +247,7 @@ def _seance_text(original: str, removed: list[dict]) -> Text:
             cur = cover[i]
             if cur is None or (hidden and removed[cur].get("kind") not in HIDDEN_KINDS):
                 cover[i] = idx
-    out = Text()
+    segments: list[tuple] = []
     shown_ids: set[int] = set()
     i = 0
     while i < n:
@@ -240,14 +256,21 @@ def _seance_text(original: str, removed: list[dict]) -> Text:
         while j < n and cover[j] == idx:
             j += 1
         if idx is None:
-            out.append(_display(html.unescape(original[i:j])))
+            segments.append(("text", _display(html.unescape(original[i:j]))))
         elif removed[idx].get("kind") == "html_tag":
-            if _is_block(removed[idx].get("text", "")) and out.plain and out.plain[-1] not in " \n":
-                out.append("\n")
+            if _is_block(removed[idx].get("text", "")):
+                segments.append(("break",))
         elif idx not in shown_ids:
             shown_ids.add(idx)
-            _append_ghost(out, removed[idx])
+            segments.append(_ghost_segment(removed[idx]))
         i = j
+    return segments
+
+
+def _seance_text(original: str, removed: list[dict]) -> Text:
+    out = Text()
+    for seg in seance_segments(original, removed):
+        _append_segment(out, seg)
     return out
 
 
