@@ -212,10 +212,15 @@ def run_message(msg_id: str, guard: bool, model: Model, *, inbox: dict | None = 
     run = _new_run(message, guard, model, hospital)
     ctx = ToolContext(message_id=msg_id, sender_id=message["sender_patient_id"], inbox=inbox,
                       patients=patients, hospital=hospital)
-    body = strip_text(message["body_html"])  # both modes: the seance view and the Whispering evidence need it
-    if body is not None:
-        subject = strip_text(message["subject"])
-        run["strip"] = {"clean": body[0], "removed": body[1], "subject": {"clean": subject[0], "removed": subject[1]}}
+    try:  # both modes: the seance view and the Whispering evidence need it
+        body = strip_text(message["body_html"])
+        if body is not None:
+            subject = strip_text(message["subject"])
+            run["strip"] = {"clean": body[0], "removed": body[1],
+                            "subject": {"clean": subject[0], "removed": subject[1]}}
+    except Exception as e:  # a hostile message must not crash the run; GUARD=1 then fails closed in its own read
+        run["strip"] = None
+        run["strip_error"] = type(e).__name__
     started = time.monotonic()
     try:
         if guard:
@@ -311,7 +316,7 @@ def run_guarded(ctx: ToolContext, model: Model, run: dict) -> None:
     if held:
         run["status"] = "held"
         run["held_reason"] = held
-        deny(ctx, "draft_reply", {"reason": held, "model_reply": content[:500]})
+        deny(ctx, "draft_reply", {"reason": held, "model_reply": str(content or "")[:500]})
         return
     run["intent"] = intent
     sender = lookup_sender(ctx)

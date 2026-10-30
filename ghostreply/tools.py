@@ -208,8 +208,11 @@ def read_current_message(ctx: ToolContext) -> dict:
     if _strip is None:
         raise GuardUnavailable("Warding Circle mode needs ghostreply/strip.py; refusing to show the model raw text")
     message = ctx.inbox[ctx.message_id]
-    subject, subject_removed = _strip(message["subject"])
-    body, body_removed = _strip(message["body_html"])
+    try:
+        subject, subject_removed = _strip(message["subject"])
+        body, body_removed = _strip(message["body_html"])
+    except Exception as e:  # fail closed: never fall back to showing the model text that strip() could not clean
+        raise GuardUnavailable(f"strip() failed on this message ({type(e).__name__}); nothing was shown to the model") from e
     ctx.log("read_message", {}, patients=[ctx.sender_id], messages=[ctx.message_id], note="bound to the current message")
     return {"subject": subject, "subject_removed": subject_removed, "body": body, "body_removed": body_removed}
 

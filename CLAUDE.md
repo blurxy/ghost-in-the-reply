@@ -20,6 +20,10 @@ Standing operating rules from Rafi: .claude/rules/operating-rules.md (loaded aut
 - Never read or commit .env or the Sentry DSN.
 - Wording (README, CLI, pitch): "closed by design for these two harms", never "unbreakable" or "no gaps";
   "the kind of disclosure HIPAA exists to prevent", never "HIPAA violation"; never say Epic's tool, or the workshop presenter's platforms, are vulnerable.
+- Gemma 4 track wording (Rafi, Oct 30 1:40 PM): never imply Gemma 4 lacks guardrails other models have, or is weaker or unsafe;
+  hidden-instruction attacks work on every LLM, so this is a system-design problem, not a Gemma problem. Never say we modified
+  Gemma, its weights or "Gemma's guardrails": the guard lives in the system around the model (what it may call, whose chart code
+  looks up, templates for replies). Good line: "The model can still be fooled. It just has nothing to act with."
 - README needs a "Built with" list (MLH rule): Python, Ollama, Gemma 4, Rich, pytest, Claude Code, Sentry if used.
 - The bot only drafts. Nothing is ever sent.
 
