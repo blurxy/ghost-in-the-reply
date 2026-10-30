@@ -141,6 +141,23 @@ dashboard switches to the recording and its badge says so.
 
 Every run is saved to `runs/` as JSON and can be replayed and re-scored without the model.
 
+## Raw demo: stock Ollama and curl
+
+The live demo runs in a plain terminal against stock Gemma 4 through Ollama, with nothing in between. You need
+`ollama`, `curl` and `jq`. Run each step from the repo root (`bash demo/raw/demo.sh all` runs them in order, pausing
+between steps):
+
+| Step | Command | What it shows |
+| --- | --- | --- |
+| 1 | `bash demo/raw/demo.sh 1` | A plain `ollama run` on the haunted message: the drafted reply tells the patient to call the attacker's number |
+| 2 | `bash demo/raw/demo.sh 2` | A raw `curl` to `/api/chat` with Wisp's three tools: the response asks to look up a patient who didn't send the message |
+| 3 | `bash demo/raw/demo.sh 3` | The same message in Warding Circle mode: no tools and a `format=` JSON schema, so the only output is `{intent, proposed_time, needs_clinician}` |
+| 4 | `bash demo/raw/demo.sh 4` | The full loop runs the tool calls: guard off scores Possessed, guard on scores Whispering |
+| 5 | `bash demo/raw/demo.sh 5` | The test suite, which never calls the model |
+
+`demo/raw/make_requests.py` builds the request bodies from the same constants the app uses, so what `curl` sends is
+exactly what `python main.py` sends on its first turn. `demo/raw/RAW-DEMO.md` is the presenter's run sheet.
+
 ## Try your own ghost
 
 Every mode runs on your own laptop at http://127.0.0.1:8765, with no login; messages go only to the Ollama server
@@ -194,6 +211,12 @@ react with the guard off and on. Visible and hidden text are capped at 2,000 cha
 - **Out of scope:** account takeover (the portal login is trusted), flooding the staff review queue, and the clinical
   quality of replies (anything unclear is held for a person).
 - **The crisis tripwire is a keyword backstop** that hands the message to a person. It is not clinical triage.
+
+## Team
+
+Rafiul (github.com/blurxy) · Jason Zeng (github.com/jzeng151) · abdul759 (github.com/abdul759)
+
+Jason and abdul759 contributed ideas and design feedback at the venue: the restricted behavioral-health leak, protection-first framing, and the inbox look.
 
 ## Built with
 

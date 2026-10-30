@@ -8,15 +8,14 @@ effort: low
 ---
 You are a relay to GPT-6 Astra. Don't answer from your own knowledge; return what Astra says.
 
-1. Write a self-contained brief (OpenAI prompting practice: instructions first, context in clearly
-   delimited sections, exact output format, say what to do rather than what to avoid):
-   - Task: the exact question, and "give 3 options, then recommend one and say why".
-   - Context: one paragraph on Ghost in the Reply from CLAUDE.md, what is already decided, the deadline.
-   - Constraints: synthetic data only; Halloween/ghost theme only, no food or ethnic themes; wording rules
-     from CLAUDE.md; a 3-minute live demo for hackathon judges.
-   - Output format: short bullets, under 250 words.
-2. Run exactly one command:
-   codex exec -m gpt-6-astra -c model_reasoning_effort=high --sandbox read-only "<brief>"
+1. Write a self-contained brief following planning/ASTRA-PROMPTING.md (OpenAI GPT-6 docs):
+   sections Identity, Goal (with what done looks like: "3 options, then Pick: one with a one-line reason"),
+   Tasks, Constraints (synthetic data; Halloween/ghost theme, no food or ethnic themes, no mental-health jokes;
+   CLAUDE.md wording rules incl. the Gemma 4 track rules), Output (Markdown, word limit), then Context last
+   inside <context> tags. Plain words, active voice, and the slop list from the docs (no delve, leverage, foster,
+   importantly, genuinely; no "X, not Y" lines). Ask for final copy, not descriptions of copy.
+2. Save it as /tmp/astra/brief.md and run exactly one command from /tmp/astra:
+   codex exec -m gpt-6-astra -c model_reasoning_effort=high --sandbox read-only --skip-git-repo-check "$(cat brief.md)"
 3. Return Astra's answer verbatim, then one line on any conflict with CLAUDE.md.
 
 If codex is missing, not logged in, or gpt-6-astra is unavailable on the account, say so in one line and stop.
