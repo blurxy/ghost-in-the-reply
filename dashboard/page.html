@@ -24,6 +24,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--
 #badge{font-weight:700;padding:.15em .7em;border-radius:999px;border:2px solid;white-space:nowrap}
 #badge.replay{color:var(--amb);border-color:var(--amb);background:#2a2300}
 #badge.live{color:var(--grn);border-color:var(--grn);background:#00331a}
+#badge.wait{color:var(--cyn);border-color:var(--cyn);background:#00262b}
 #badge.live::before{content:"";display:inline-block;width:.5em;height:.5em;border-radius:50%;background:var(--grn);margin-right:.5em;animation:pulse 1.2s infinite}
 #stage{position:relative;min-height:0;display:flex;flex-direction:column;gap:1.4vh;overflow:hidden}
 h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacing:-.01em}
@@ -174,7 +175,7 @@ if (FINAL) document.documentElement.classList.add("final");
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
-let S = null, V = null, offset = 0, timers = [], autoTimer = null;
+let S = null, V = null, offset = 0, timers = [], autoTimer = null, lastWarnKey = "";
 const at = (ms, fn) => timers.push(setTimeout(fn, FINAL ? 0 : ms));
 const clearTimers = () => { timers.forEach(clearTimeout); timers = []; };
 const reveal = (node) => node && node.classList.add("in");
@@ -254,12 +255,35 @@ function chrome() {
   const b = (S.runs[guard] || {}).badge || { source: "replay", text: "REPLAY" };
   const badge = $("#badge");
   badge.textContent = b.text;
-  badge.className = b.source === "live" ? "live" : "replay";
+  badge.className = b.source === "live" ? "live" : b.source === "wait" ? "wait" : "replay";
+  updateWait();
   presenterTick();
 }
 
 /* ---- shared pieces ---- */
 function stage_h1(stage, step) { stage.append(el("h1", null, step.headline)); }
+
+/* A live run still inside its timeout: say so and count. It is never shown as a replay, and never waits past its limit. */
+function waitScreen(stage, guard) {
+  const st = S.runs[guard];
+  if (!st || st.source !== "wait") return false;
+  const box = el("div", "center");
+  box.append(el("h1", null, "Waiting for the live run…"));
+  const line = el("div", "sub");
+  line.id = "waitline";
+  box.append(line);
+  stage.append(box);
+  updateWait();
+  return true;
+}
+function updateWait() {
+  const line = $("#waitline");
+  if (!line || !S) return;
+  const w = (S.runs[S.step >= 4 ? "1" : "0"] || {}).wait;
+  if (w) line.textContent = "Gemma 4 is working: " + Math.floor(w.elapsed) + " s of up to " + w.timeout +
+    " s. After that, the saved real run takes over and says so.";
+}
+function noRun(stage) { stage.append(el("div", "sub", "No run to show.")); }
 
 function staffCard(m) {
   const card = el("div", "card msg");
@@ -395,8 +419,9 @@ const DRAW = {
 
   possessed(stage, step) {
     stage_h1(stage, step);
+    if (waitScreen(stage, "0")) return;
     const run = runFor(0);
-    if (!run) return;
+    if (!run) return noRun(stage);
     const cols = el("div", "cols");
     const trace = traceCard(run, 500);
     const draft = draftCard(run, "Draft reply");
@@ -414,8 +439,9 @@ const DRAW = {
 
   whispering(stage, step) {
     stage_h1(stage, step);
+    if (waitScreen(stage, "1")) return;
     const run = runFor(1);
-    if (!run) return;
+    if (!run) return noRun(stage);
     const jbox = el("div", "card hide");
     jbox.append(el("div", "label", "The model's only output"));
     const j = run.intent ? JSON.stringify(run.intent) : "(no output)";
@@ -480,15 +506,28 @@ function presenterTick() {
   const now = (Date.now() + offset) / 1000;
   $("#t-step").textContent = mmss(now - S.step_started);
   $("#t-demo").textContent = S.demo_started ? mmss(now - S.demo_started) : "0:00";
-  const warn = $("#p-warn");
-  const items = [];
+  // rebuild the warnings only when they change, so the "Use replay" button is not replaced under the mouse
+  const specs = [];
   ["0", "1"].forEach((g) => {
     const r = S.runs[g] || {};
-    if (r.warning) items.push(el("div", "warnbox", "GUARD=" + g + ": " + r.warning));
-    if (r.reason) items.push(el("div", "infobox", "GUARD=" + g + " is showing the replay: " + r.reason));
+    if (r.warning) specs.push(["warnbox", "GUARD=" + g + ": " + r.warning, true]);
+    if (r.source === "wait") specs.push(["infobox", "GUARD=" + g + ": waiting for the live run (" + Math.floor((r.wait || {}).elapsed || 0) + " s of " + ((r.wait || {}).timeout || "?") + " s)", true]);
+    else if (r.reason) specs.push(["infobox", "GUARD=" + g + " is showing the replay: " + r.reason, false]);
   });
-  if (S.note) items.push(el("div", "infobox", S.note));
-  warn.replaceChildren(...items);
+  if (S.note) specs.push(["infobox", S.note, false]);
+  const key = JSON.stringify(specs);
+  if (key !== lastWarnKey) {
+    lastWarnKey = key;
+    $("#p-warn").replaceChildren(...specs.map(([cls, text, button]) => {
+      const box = el("div", cls, text);
+      if (button) {
+        const b = el("button", null, "Use replay (L)");
+        b.onclick = () => act("toggle_mode");
+        box.append(document.createElement("br"), b);
+      }
+      return box;
+    }));
+  }
   $("#p-sources").replaceChildren(...["0", "1"].map((g) => {
     const r = S.runs[g] || {};
     const live = r.badge && r.badge.source === "live";

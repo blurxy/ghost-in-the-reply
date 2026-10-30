@@ -76,6 +76,8 @@ def assert_badges_honest(snapshot_or_views: dict) -> None:
         assert run["badge"]["source"] == run["source"] if "source" in run else True
         if run["badge"]["source"] == "live":
             assert LIVE_BADGE.fullmatch(text), text
+        elif run["badge"]["source"] == "wait":  # a live run still going: neither live nor a replay, and it says so
+            assert text == "Waiting for the live run…" and "LIVE" not in text, text
         else:
             assert "LIVE" not in text, text
             assert text.startswith(REPLAY_PREFIX), text
@@ -101,9 +103,10 @@ def test_resolve_live_not_running_falls_back_with_a_reason(guard, outcome):
 
 
 @pytest.mark.parametrize("guard", [0, 1])
-def test_resolve_pending_falls_back_with_a_reason(guard):
-    choice = resolve("live", guard, Outcome("pending"))
-    assert choice.source == "replay" and choice.reason
+def test_resolve_pending_waits_and_never_shows_a_replay_early(guard):
+    choice = resolve("live", guard, Outcome("pending", timeout=40.0 if guard == 0 else 25.0))
+    assert choice.source == "wait" and "waiting" in choice.reason
+    assert ("40 s" if guard == 0 else "25 s") in choice.reason
 
 
 @pytest.mark.parametrize("guard,seconds", [(0, "40 s"), (1, "25 s")])
@@ -570,7 +573,7 @@ def test_live_source_in_use_shows_the_live_badge_and_nothing_else():
     assert_badges_honest(state.views())
 
 
-def test_pending_live_run_shows_the_replay_with_a_reason_and_no_live_word(gate):
+def test_pending_live_run_waits_with_a_countdown_and_shows_no_replay_and_no_live_word(gate):
     def run_fn(guard):
         gate.wait(2)
         return good_run(guard)
@@ -579,10 +582,12 @@ def test_pending_live_run_shows_the_replay_with_a_reason_and_no_live_word(gate):
     snap = state.snapshot()
     for guard in ("0", "1"):
         run = snap["runs"][guard]
-        assert run["source"] == "replay" and run["reason"]
-        assert "LIVE" not in run["badge"]["text"] and run["run_id"] == REPLAYS[int(guard)]["run_id"]
+        assert run["source"] == "wait" and run["reason"]
+        assert run["badge"] == {"source": "wait", "text": "Waiting for the live run…"}
+        assert set(run["wait"]) == {"elapsed", "timeout"} and run["wait"]["timeout"] in (40.0, 25.0)
+        assert run["run_id"] == ""  # no replay is on screen while a live run is inside its timeout
     assert_badges_honest(snap)
-    assert_badges_honest(state.views())
+    assert state.views()["runs"] == {}  # nothing to draw yet: the page shows its waiting screen
     gate.set()
     settle(runner)
 
@@ -1218,6 +1223,7 @@ def patched_main(monkeypatch, *, live_builder=None):
         raise AssertionError("the live runner must not be built in --replay-only")
 
     monkeypatch.setattr(dash_main, "make_server", fake_make_server)
+    monkeypatch.setattr(dash_main, "port_in_use", lambda host, port: False)  # 8765 is taken on the demo laptop
     monkeypatch.setattr(dash_main, "run_checks", lambda *a, **k: [])
     monkeypatch.setattr(dash_main, "build_live_runner", live_builder or refuse)
     yield seen
@@ -1232,7 +1238,7 @@ def test_main_default_host_is_loopback_in_replay_only(monkeypatch, capsys):
 
 
 def test_main_default_host_is_loopback_in_live_mode_too(monkeypatch):
-    def build(model, host):
+    def build(model, host, timeouts=None):
         return LiveRunner(lambda g: (_ for _ in ()).throw(RuntimeError("no model in tests")), clock=Clock())
 
     with patched_main(monkeypatch, live_builder=build) as seen:
@@ -1443,8 +1449,8 @@ def test_run_checks_returns_four_checks_in_order(monkeypatch):
 
     monkeypatch.setattr(preflight.subprocess, "run", no_subprocess)
     checks = preflight.run_checks(DEMO, replay_only=True, model="m", host="http://x")
-    assert [c["id"] for c in checks] == ["ollama", "power", "replays", "pushed"]
-    assert [c["state"] for c in checks] == ["skip", "skip", "ok", "skip"]
+    assert [c["id"] for c in checks] == ["ollama", "loaded", "power", "replays", "pushed"]
+    assert [c["state"] for c in checks] == ["skip", "skip", "skip", "ok", "skip"]
     for check in checks:
         assert set(check) == {"id", "label", "state", "detail"} and check["state"] in ("ok", "fail", "skip")
 
@@ -1456,13 +1462,13 @@ def test_run_checks_survives_a_check_that_raises(monkeypatch):
     monkeypatch.setattr(preflight, "check_power", boom)
     monkeypatch.setattr(preflight, "check_pushed", lambda **k: preflight._check("pushed", "HEAD pushed", "skip", "x"))
     checks = preflight.run_checks(DEMO, replay_only=True, model="m", host="http://x")
-    assert len(checks) == 4
-    assert checks[1] == {"id": "error", "label": "A preflight check", "state": "fail", "detail": "RuntimeError"}
-    assert checks[0]["state"] == "skip" and checks[2]["state"] == "ok" and checks[3]["state"] == "skip"
+    assert len(checks) == 5
+    assert checks[2] == {"id": "error", "label": "A preflight check", "state": "fail", "detail": "RuntimeError"}
+    assert checks[0]["state"] == "skip" and checks[3]["state"] == "ok" and checks[4]["state"] == "skip"
 
 
 def test_run_checks_never_marks_ollama_ok_in_replay_only(monkeypatch):
     monkeypatch.setattr(preflight.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="performance", returncode=0))
     checks = preflight.run_checks(DEMO, replay_only=True, model="m", host="http://x")
-    assert checks[0]["state"] == "skip"
-    assert checks[1]["state"] == "ok" and checks[3]["state"] == "ok"
+    assert checks[0]["state"] == "skip" and checks[1]["state"] == "skip"
+    assert checks[2]["state"] == "ok" and checks[4]["state"] in ("ok", "skip")

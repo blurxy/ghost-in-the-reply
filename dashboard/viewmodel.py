@@ -42,8 +42,11 @@ def hhmm(started_at: object) -> str:
 
 
 def badge(source: str, run: dict) -> dict:
-    """The honest label for where a result came from. Only source == "live" ever says LIVE."""
+    """The honest label for where a result came from. Only source == "live" ever says LIVE, and only a replay
+    says REPLAY; a live run still going says it is being waited for."""
     run = _dict(run)
+    if source == "wait":  # neither a live result nor a replay yet: say exactly that
+        return {"source": "wait", "text": "Waiting for the live run…"}
     if source == "live":
         seconds = run.get("duration_ms")
         took = f" · {seconds / 1000:.1f} s" if isinstance(seconds, (int, float)) and seconds > 0 else ""

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
 import sys
 
 from ghostreply.harness import DEFAULT_HOST, DEFAULT_MODEL, ROOT
 
+from .live import TIMEOUTS, LiveRunner
 from .preflight import run_checks
 from .server import make_server
 from .state import DashboardState
@@ -20,17 +22,31 @@ DEMO_DIR = ROOT / "runs" / "demo"
 BACKUP = ROOT / "dashboard" / "backup.mp4"
 
 
-def build_live_runner(model: str, host: str):
+def build_live_runner(model: str, host: str, timeouts: dict[int, float] | None = None):
     """Real runs of msg-004 on the model, saved to runs/ (never runs/demo/). Imported late so --replay-only
-    never touches the model code path."""
+    never touches the model code path. The model is warmed with a 1-token call first, so the GUARD=0 timing
+    measures the run, not the model loading into the GPU."""
     from ghostreply.harness import OllamaModel, run_message, save_run
 
-    from .live import LiveRunner
+    from .preflight import warm_up
 
     def run_fn(guard: int) -> dict:
         return run_message("msg-004", bool(guard), OllamaModel(model, host))
 
-    return LiveRunner(run_fn, save=save_run)
+    # the warm-up is `prepare`: it is not counted against GUARD=0's 40 s, and it has a limit of its own
+    return LiveRunner(run_fn, timeouts=timeouts, save=save_run, prepare=lambda: warm_up(model, host))
+
+
+def port_in_use(host: str, port: int) -> bool:
+    """True if something already answers on this port (any interface a client could reach it by)."""
+    targets = {"127.0.0.1" if host in ("", "0.0.0.0", "::") else host, "127.0.0.1"}
+    for target in targets:
+        try:
+            with socket.create_connection((target, port), timeout=0.5):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,15 +56,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--replay-only", action="store_true", help="never call Ollama; every badge says REPLAY")
     parser.add_argument("--model", default=os.environ.get("GHOST_MODEL", DEFAULT_MODEL))
     parser.add_argument("--ollama-host", default=os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
+    parser.add_argument("--timeout0", type=float, default=TIMEOUTS[0], help="seconds before a live GUARD=0 run falls back")
+    parser.add_argument("--timeout1", type=float, default=TIMEOUTS[1], help="seconds before a live GUARD=1 run falls back")
     args = parser.parse_args(argv)
 
-    live = None if args.replay_only else build_live_runner(args.model, args.ollama_host)
+    if port_in_use(args.host, args.port):
+        print(f"port {args.port} is in use; try --port {args.port + 34}", file=sys.stderr)
+        return 2
+
+    live = None if args.replay_only else build_live_runner(args.model, args.ollama_host,
+                                                           {0: args.timeout0, 1: args.timeout1})
     state = DashboardState(
         DEMO_DIR, live=live, mode="replay" if args.replay_only else "live", backup=BACKUP,
         preflight=lambda: run_checks(DEMO_DIR, replay_only=args.replay_only, model=args.model,
                                      host=args.ollama_host, cwd=ROOT),
     )
-    server = make_server(state, args.host, args.port)
+    try:
+        server = make_server(state, args.host, args.port)
+    except OSError as exc:
+        print(f"cannot listen on {args.host}:{args.port} ({exc.strerror or type(exc).__name__}); "
+              f"try --port {args.port + 34}", file=sys.stderr)
+        return 2
     shown = args.host if args.host not in ("0.0.0.0", "") else "127.0.0.1"
     mode = "replay-only" if args.replay_only else "live with replay fallback"
     print(f"Ghost in the Reply dashboard ({mode})")

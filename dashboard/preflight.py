@@ -36,6 +36,44 @@ def check_ollama(model: str, host: str, *, replay_only: bool,
     return _check("ollama", label, "fail", "reachable, but the model is not installed")
 
 
+def check_loaded(model: str, host: str, *, replay_only: bool,
+                 fetch: Callable[[str, float], bytes] | None = None) -> dict:
+    """Is the model in GPU memory right now (Ollama's /api/ps)? A loaded model starts the demo run at once."""
+    label = "Model loaded"
+    if replay_only:
+        return _check("loaded", label, "skip", "replay-only: no model is used")
+    fetch = fetch or (lambda url, timeout: urllib.request.urlopen(url, timeout=timeout).read())
+    try:
+        running = json.loads(fetch(host.rstrip("/") + "/api/ps", 2.0)).get("models", [])
+    except Exception as exc:
+        return _check("loaded", label, "fail", f"cannot ask Ollama: {type(exc).__name__}")
+    for m in running:
+        if m.get("name") == model or str(m.get("name", "")).split(":")[0] == model:
+            vram, size = m.get("size_vram") or 0, m.get("size") or 0
+            where = f"{vram * 100 // size}% on the GPU" if size else "loaded"
+            return _check("loaded", label, "ok" if size and vram >= size else "fail" if size else "ok", where)
+    return _check("loaded", label, "fail", "not loaded yet; the first run will be slow")
+
+
+def warm_up(model: str, host: str, *, post: Callable[[str, bytes, float], object] | None = None,
+            timeout: float = 90.0) -> bool:
+    """One 1-token call, so the model is loaded into the GPU (and kept there) before step 3. Never raises."""
+    body = json.dumps({
+        "model": model, "messages": [{"role": "user", "content": "Reply with one word."}], "stream": False,
+        "think": False, "keep_alive": -1, "options": {"num_predict": 1, "temperature": 0},
+    }).encode("utf-8")
+
+    def default_post(url: str, data: bytes, seconds: float) -> object:
+        request = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        return urllib.request.urlopen(request, timeout=seconds).read()
+
+    try:
+        (post or default_post)(host.rstrip("/") + "/api/chat", body, timeout)
+        return True
+    except Exception:
+        return False
+
+
 def check_power(run: Callable | None = None) -> dict:
     label = "Power profile"
     run = run or subprocess.run
@@ -82,6 +120,7 @@ def run_checks(replay_dir: Path | str, *, replay_only: bool, model: str, host: s
                cwd: Path | str | None = None) -> list[dict]:
     checks: list[Callable[[], dict]] = [
         lambda: check_ollama(model, host, replay_only=replay_only),
+        lambda: check_loaded(model, host, replay_only=replay_only),
         check_power,
         lambda: check_replays(replay_dir),
         lambda: check_pushed(cwd=cwd),
