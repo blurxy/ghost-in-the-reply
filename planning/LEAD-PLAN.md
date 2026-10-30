@@ -176,8 +176,8 @@ HIDDEN_KINDS: frozenset[str]   # every kind except plain "html_tag" markup
   (keeping `\t \n \r`) plus the extra kinds → **NFKC last**.
 - **Repeat until stable,** at most 5 passes. If the text is still changing after that, the remaining `<`, `>` and
   `&` are dropped as `unstable_markup`.
-- **Guarantees:** pure, total and idempotent, so `strip(clean)[0] == clean` for every input and no markup ever
-  reaches the model. `rendered(body_html)` is a pure helper for the staff view (hidden parts dropped, no NFKC).
+- **Guarantees:** pure, total and idempotent, so `strip(clean)[0] == clean` for every input. No tag, comment, entity
+  or invisible character survives to the model; a lone `<` or `&` in ordinary text is kept, as a browser would show it. `rendered(body_html)` is a pure helper for the staff view (hidden parts dropped, no NFKC).
 
 ```python
 # ui.py reads only the run-log dict: no model calls, no file I/O, no imports from harness or tools

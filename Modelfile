@@ -1,0 +1,7 @@
+# Wisp's model: Gemma 4 12B, pinned for repeatable runs.
+# Build it with:  ollama create gemma4-12b-agent -f Modelfile
+# The harness also sends temperature 0, a fixed seed and top_k 1 on every call. num_ctx lives here because
+# Ollama's OpenAI-compatible /v1 endpoint ignores a per-request context size; the harness uses the native /api/chat.
+FROM gemma4:12b
+PARAMETER num_ctx 8192
+PARAMETER temperature 0

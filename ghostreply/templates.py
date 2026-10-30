@@ -104,7 +104,7 @@ def render_reply(intent: dict, sender: dict, hospital: dict) -> str:
     key = intent["intent"]
     lines = [f"Hello {first_name},", "", _OPENERS[key]]
     if key == "reschedule" and intent.get("proposed_time"):
-        lines.append(f"We have noted that you asked about {_when(intent['proposed_time'])}.")
+        lines.append(f"You asked about {_when(intent['proposed_time'])} in your message.")
     lines.append(_NEXT_STEPS[key])
     if intent.get("needs_clinician") is True:
         lines.append(_CLINICIAN)
