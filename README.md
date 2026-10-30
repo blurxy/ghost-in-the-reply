@@ -101,7 +101,14 @@ python main.py --guard 1                      # the whole inbox
 
 python main.py --replay runs/demo/msg-004-guard0.json   # replay a recorded run; no model needed
 python -m pytest -q                                     # the test suite; never calls the model
+
+python -m dashboard                 # the demo dashboard: http://127.0.0.1:8765/ (audience) and /presenter
+python -m dashboard --replay-only   # the same dashboard from the recorded runs; never calls the model
 ```
+
+The dashboard is what the live demo runs on. Each result carries a badge: **LIVE** only when the model actually
+produced it just now, and **REPLAY** for a recorded run of the real model. If a live run is slow or fails, the
+dashboard switches to the recording and its badge says so.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -121,6 +128,7 @@ Every run is saved to `runs/` as JSON and can be replayed and re-scored without 
 | `ghostreply/oracles.py` | Leak and phishing oracles and the possession score |
 | `ghostreply/strip.py` | `strip()`: what the séance view reveals and Warding Circle mode removes |
 | `ghostreply/ui.py` | The terminal views: portal, séance, agent trace, draft, meter |
+| `dashboard/` | The demo dashboard: audience and presenter views, live runs with a replay fallback, honest LIVE/REPLAY badges |
 | `inbox/`, `records/` | Synthetic messages and charts, including the haunted message |
 | `tests/` | The pytest suite, including the obey-every-ghost key test and red-team regressions |
 | `planning/` | Plans written before hacking started, and the interface contract |
