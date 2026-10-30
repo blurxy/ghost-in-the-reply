@@ -394,7 +394,7 @@ def test_the_audience_gets_a_plain_sentence_and_the_presenter_keeps_the_raw_kind
     assert meter["caught"] == "Caught: 1 hidden block of text, removed before the model read it"
     assert meter["evidence"] == ["hidden text removed: hidden_html x1"]  # raw, for the presenter view only
     page = Path(PAGE).read_text(encoding="utf-8")
-    audience_js = page.split("function meterOverlay")[1].split("/* ---- the steps ---- */")[0]
+    audience_js = page.split("function meterParts")[1].split("/* ---- the steps ---- */")[0]
     assert "m.caught" in audience_js and "hidden_html" not in audience_js
     assert "evidence: " in page.split("function presenterTick")[1]  # the raw evidence is on the presenter view
 
@@ -445,6 +445,44 @@ def test_the_step_copy_uses_plain_words_for_the_audience():
     text = " ".join(steps.all_text())
     assert "JSON" not in text and "hidden_html" not in text and "format_char" not in text
     assert "fills in a small form" in text
+
+
+def test_the_meter_docks_after_the_slam_and_the_evidence_is_never_inside_the_overlay():
+    page = Path(PAGE).read_text(encoding="utf-8")
+    assert int(re.search(r"const SLAM_MS = (\d+);", page).group(1)) == 1500  # "about 1.5 s"
+    schedule = page.split("function scheduleMeter")[1].split("\n}\n")[0]
+    assert 'parts.box.classList.remove("in")' in schedule      # the slam overlay goes away
+    assert "reveal(parts.strip)" in schedule                   # the strip takes the headline's place
+    assert 'h1.classList.add("gone")' in schedule
+    assert "SLAM_MS + 300" in schedule                         # the evidence lines follow, one by one
+    for step in ("possessed(stage, step)", "whispering(stage, step)"):
+        body = page.split(step)[1].split("\n  },")[0]
+        assert "scheduleMeter(" in body and "meter.evidence" in body and "meter.strip" in body
+        assert "meterOverlay" not in body
+    overlay = page.split("function meterParts")[1].split("function runHead")[0]
+    assert 'box.append(track(), el("div", "word", word), el("div", "mcap", m.caption));' in overlay
+    assert "evidence.append" in overlay and "box.append(evidence" not in overlay  # evidence lives beside the columns
+
+
+def test_the_docked_strip_keeps_a_headline_sized_word_in_the_headlines_own_cell():
+    css = Path(PAGE).read_text(encoding="utf-8").split("</style>")[0]
+    assert re.search(r"\.mstrip \.sword\{font-size:var\(--head\)", css)        # still a 64px+ headline
+    assert ".headcell > *{grid-area:1/1" in css and ".headcell h1.gone{opacity:0}" in css  # swapping moves nothing
+
+
+def test_the_project_is_called_haunted_inbox_everywhere_the_dashboard_says_its_name():
+    # Rafi renamed the project on Oct 30 (the organizer reads the name out); wisp, the hospital and the repo URL stay
+    from dashboard import steps
+
+    root = Path(PAGE).parent
+    for path in sorted(root.glob("*.py")) + [Path(PAGE)]:
+        assert "Ghost in the Reply" not in path.read_text(encoding="utf-8"), path.name
+    title = steps.STEPS[0]
+    assert title["headline"] == "Haunted Inbox" and title["say"] == "Haunted Inbox."
+    assert "<title>Haunted Inbox</title>" in Path(PAGE).read_text(encoding="utf-8")
+    assert steps.REPO_URL == "github.com/blurxy/ghost-in-the-reply"  # the repo keeps its name
+    text = " ".join(steps.all_text())
+    assert "Wisp" in text and "Warding Circle" in text
 
 
 def test_the_presenter_column_is_bounded_and_scrolls():

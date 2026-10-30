@@ -50,7 +50,7 @@ def port_in_use(host: str, port: int) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m dashboard", description="The Ghost in the Reply demo dashboard.")
+    parser = argparse.ArgumentParser(prog="python -m dashboard", description="The Haunted Inbox demo dashboard.")
     parser.add_argument("--host", default="127.0.0.1", help="interface to bind (default 127.0.0.1 only)")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--replay-only", action="store_true", help="never call Ollama; every badge says REPLAY")
@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     shown = args.host if args.host not in ("0.0.0.0", "") else "127.0.0.1"
     mode = "replay-only" if args.replay_only else "live with replay fallback"
-    print(f"Ghost in the Reply dashboard ({mode})")
+    print(f"Haunted Inbox dashboard ({mode})")
     print(f"  audience   http://{shown}:{args.port}/")
     print(f"  presenter  http://{shown}:{args.port}/presenter")
     print(f"  autoplay   http://{shown}:{args.port}/?autoplay=1&step_ms=6000")
