@@ -55,7 +55,7 @@ STEPS: list[dict] = [
         "headline": "The model can still be fooled",
         "sub": "It just has nothing to act with.",
         "boxes": [
-            {"title": "The model only classifies", "body": "It returns JSON. It has no tools."},
+            {"title": "The model only classifies", "body": "It fills in a small form. It has no tools."},
             {"title": "Code decides whose chart", "body": "The sender's, and only the sender's."},
             {"title": "Templates write the reply", "body": "Hospital wording. Nothing the model wrote."},
         ],

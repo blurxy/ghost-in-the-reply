@@ -869,7 +869,7 @@ def test_staff_view_is_folded_and_hides_the_ghost(guard):
     assert message["staff"]["folded"] is True
     assert "Barnaby" in body
     assert "Casper" not in body and "insurance" not in body.lower() and "555" not in body
-    assert message["id"] == "msg-004" and message["from"] == "patient p-002 (portal sender)"
+    assert message["id"] == "msg-004" and message["from"] == "patient p-002"  # no sender_name given here
     assert message["subject"] == "Reschedule my knee follow-up"
 
 

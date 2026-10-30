@@ -46,6 +46,19 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .center .sub{font-size:calc(var(--body)*1.25)}
 .url{font-family:var(--mono);color:var(--cyn);font-size:calc(var(--body)*1.2)}
 
+/* portal inbox (step 1) */
+.portal{display:grid;grid-template-columns:.78fr 1.22fr;gap:1.2vw;min-height:0}
+.inbox{display:flex;flex-direction:column;border:2px solid var(--line);border-radius:14px;background:var(--card);overflow:hidden;min-width:0}
+.irow{padding:.8vh 1vw;border-bottom:1px solid var(--line);border-left:6px solid transparent;color:var(--dim);min-width:0}
+.irow:last-child{border-bottom:0}
+.irow .iname,.irow .isub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.irow.unread .iname{color:var(--fg);font-weight:800}
+.irow.sel{background:#1b1b2b;border-left-color:var(--mag);color:var(--fg)}
+.udot{color:var(--mag);margin-right:.4em}
+.open{min-width:0}
+.open .osub{font-weight:800}
+.open .ometa{color:var(--dim);margin-bottom:.8vh}
+
 /* staff + seance */
 .msg .meta{display:grid;grid-template-columns:auto 1fr;gap:0 1.2vw;margin-bottom:1vh}
 .msg .meta b{color:var(--dim);font-weight:600}
@@ -103,7 +116,7 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 /* ---------- presenter ---------- */
 body.presenter #frame{display:none}
 #presenter{display:none}
-body.presenter #presenter{position:fixed;inset:0;display:grid;grid-template-columns:1.7fr 1fr;gap:2vw;padding:2.4vh 2vw;font-size:20px;overflow:auto}
+body.presenter #presenter{position:fixed;inset:0;display:grid;grid-template-columns:1.7fr 1fr;grid-template-rows:minmax(0,1fr);gap:2vw;padding:2.4vh 2vw;font-size:20px;overflow:hidden}
 body.presenter, body.presenter html{overflow:auto}
 #pl{display:flex;flex-direction:column;gap:2vh;min-width:0}
 #p-kick{color:var(--mag);font-weight:800;letter-spacing:.06em;font-size:1.1em;text-transform:uppercase}
@@ -112,19 +125,21 @@ body.presenter, body.presenter html{overflow:auto}
 #p-warn{display:flex;flex-direction:column;gap:1vh}
 .warnbox{background:#2a2300;border:2px solid var(--amb);color:var(--amb);border-radius:10px;padding:1.2vh 1vw;font-weight:700}
 .infobox{background:#0f1f2b;border:2px solid var(--cyn);color:var(--cyn);border-radius:10px;padding:1.2vh 1vw;font-weight:600}
-#pr{display:flex;flex-direction:column;gap:1.6vh;min-width:0}
-.timers{display:flex;gap:1.4vw}
-.timers div{flex:1;background:var(--card);border:2px solid var(--line);border-radius:10px;padding:.8vh 1vw}
-.timers b{display:block;font-size:2em;font-family:var(--mono)}
+/* the right column is bounded by the screen and scrolls if it must, so nothing is ever cut off; rows are compact */
+#pr{display:flex;flex-direction:column;gap:1.1vh;min-width:0;min-height:0;overflow-y:auto;padding-right:.6vw}
+#pl{min-height:0}
+.timers{display:flex;gap:1vw}
+.timers div{flex:1;background:var(--card);border:2px solid var(--line);border-radius:10px;padding:.5vh .8vw}
+.timers b{display:block;font-size:1.6em;font-family:var(--mono)}
 .btns{display:flex;flex-wrap:wrap;gap:.8vw}
 button{font:inherit;font-weight:700;color:var(--fg);background:#1d1d2b;border:2px solid var(--line);border-radius:10px;padding:.7vh 1.1vw;cursor:pointer}
 button:hover{border-color:var(--mag)}
-.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.5vh}
-.steps li{padding:.6vh .8vw;border-radius:8px;border:2px solid transparent;cursor:pointer;color:var(--dim)}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.2vh}
+.steps li{padding:.3vh .7vw;border-radius:8px;border:2px solid transparent;cursor:pointer;color:var(--dim)}
 .steps li.cur{border-color:var(--mag);color:var(--fg);font-weight:800}
-.pills{display:flex;flex-direction:column;gap:.6vh}
-.pill{padding:.5vh .8vw;border-radius:8px;font-weight:600}
-.pill small{display:block;font-weight:400;opacity:.85}
+.pills{display:flex;flex-direction:column;gap:.4vh}
+.pill{padding:.3vh .7vw;border-radius:8px;font-weight:600;font-size:.92em}
+.pill small{display:block;font-weight:400;opacity:.85;font-size:.85em}
 .pill.ok{background:#00331a;color:var(--grn)} .pill.fail{background:#3a0a14;color:var(--red)} .pill.skip{background:#22222e;color:var(--dim)}
 .keys{color:var(--dim);font-size:.85em}
 h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;letter-spacing:.08em}
@@ -237,7 +252,7 @@ function drawStep() {
   stage.replaceChildren();
   const step = S.steps[S.step];
   if (V && V.replay_error && S.step >= 1) {
-    stage.append(el("h1", null, "Saved runs missing"), el("div", "sub", V.replay_error));
+    stage.append(el("h1", null, "Saved runs missing"), el("div", "sub", "Presenter: check the log."));  // the detail is on the presenter view
     return;
   }
   (DRAW[step.id] || (() => {}))(stage, step);
@@ -285,15 +300,25 @@ function updateWait() {
 }
 function noRun(stage) { stage.append(el("div", "sub", "No run to show.")); }
 
-function staffCard(m) {
-  const card = el("div", "card msg");
-  const meta = el("div", "meta");
-  [["From", m.from], ["Subject", m.subject], ["Received", m.received]].forEach(([k, v]) => {
-    meta.append(el("b", null, k), el("span", null, v));
+/* A patient-portal inbox: a short list on the left (the message is selected and unread), the message open on the right.
+   Dates are human ("Wed, Oct 28 · 10:20 AM"), never ISO. */
+function portalCard(inbox, m) {
+  const wrap = el("div", "portal");
+  const list = el("div", "inbox");
+  const rows = inbox.length ? inbox : [{ from: m.from, subject: m.subject, unread: true, selected: true }];
+  rows.forEach((r) => {
+    const row = el("div", "irow" + (r.selected ? " sel" : "") + (r.unread ? " unread" : ""));
+    const name = el("div", "iname");
+    if (r.unread) name.append(el("span", "udot", "●"));
+    name.append(document.createTextNode(r.from));
+    row.append(name, el("div", "isub", r.subject));
+    list.append(row);
   });
-  card.append(meta, el("div", "body", m.staff.body));
-  if (m.staff.folded) card.append(el("div", "more", "… show more"));
-  return card;
+  const open = el("div", "card open");
+  open.append(el("div", "osub", m.subject), el("div", "ometa", m.from + "  ·  " + m.received), el("div", "body", m.staff.body));
+  if (m.staff.folded) open.append(el("div", "more", "… show more"));
+  wrap.append(list, open);
+  return wrap;
 }
 
 function traceCard(run, delay0) {
@@ -364,17 +389,25 @@ function meterOverlay(run) {
   const reasons = el("div", "reasons");
   const lines = [];
   m.leak.concat(m.phishing).forEach((t) => lines.push(el("div", "r", "✗ " + t)));
-  if (m.level === "whispering") m.evidence.forEach((t) => lines.push(el("div", "y", "▸ caught: " + t)));
+  // the audience reads words; the raw kind names are for the presenter view only
+  if (m.level === "whispering") {
+    const plain = m.caught || (m.evidence.length ? "Caught before it could do harm" : null);
+    if (plain) lines.push(el("div", "y", "▸ " + plain));
+  }
   lines.forEach((l) => reasons.append(l));
   box.append(reasons);
   return { box, lines };
 }
 
 /* ---- the steps ---- */
+// Step 3: the trace and the draft (DOB and MRN highlighted) are fully visible this long before POSSESSED slams in.
+const HOLD_BEFORE_SLAM_MS = 3200;
 const DRAW = {
   title(stage, step) {
     const c = el("div", "center");
-    const liveNow = !AUTOPLAY && S.mode === "live" && !S.replay_only;  // never claim a live model when it is not running
+    // "running on this laptop" only while both results on screen really are live; a fallback or a replay says so instead
+    const liveNow = !AUTOPLAY && S.mode === "live" && !S.replay_only &&
+      ["0", "1"].every((g) => ((S.runs[g] || {}).badge || {}).source === "live");
     c.append(el("h1", null, step.headline), el("div", "sub", step.sub),
              el("div", "foot", liveNow ? step.foot : step.foot_replay));
     stage.append(c);
@@ -383,7 +416,7 @@ const DRAW = {
   hook(stage, step) {
     stage_h1(stage, step);
     const m = V && V.message;
-    if (m) stage.append(staffCard(m));
+    if (m) stage.append(portalCard(V.inbox || [], m));
     stage.append(el("div", "dim", step.caption));
   },
 
@@ -430,9 +463,10 @@ const DRAW = {
     const meter = meterOverlay(run);
     stage.append(meter.box);
     const tDraft = trace.done + 300;
+    const tLit = tDraft + 500;
     at(tDraft, () => reveal(draft));
-    at(tDraft + 1000, () => draft.classList.add("lit"));
-    const tMeter = tDraft + 2600;
+    at(tLit, () => draft.classList.add("lit"));
+    const tMeter = tLit + HOLD_BEFORE_SLAM_MS;  // the trace and the highlighted draft stay fully readable first
     at(tMeter, () => reveal(meter.box));
     meter.lines.forEach((l, i) => at(tMeter + 800 + 450 * i, () => reveal(l)));
   },
@@ -515,6 +549,7 @@ function presenterTick() {
     else if (r.reason) specs.push(["infobox", "GUARD=" + g + " is showing the replay: " + r.reason, false]);
   });
   if (S.note) specs.push(["infobox", S.note, false]);
+  if (S.replay_error) specs.push(["warnbox", "Saved runs not loaded: " + S.replay_error, false]);
   const key = JSON.stringify(specs);
   if (key !== lastWarnKey) {
     lastWarnKey = key;
@@ -532,6 +567,9 @@ function presenterTick() {
     const r = S.runs[g] || {};
     const live = r.badge && r.badge.source === "live";
     const p = el("div", "pill " + (live ? "ok" : "skip"), "GUARD=" + g + " · " + ((r.badge || {}).text || ""));
+    // the raw evidence kinds (hidden_html x1) belong here, not on the projector
+    const meter = V && V.runs && V.runs[g] && V.runs[g].meter;
+    if (meter && meter.evidence && meter.evidence.length) p.append(el("small", null, "evidence: " + meter.evidence.join("; ")));
     return p;
   }));
   $("#p-pre").replaceChildren(...(S.preflight || []).map((c) => {
