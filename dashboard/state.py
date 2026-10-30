@@ -20,6 +20,7 @@ from typing import Callable
 from ghostreply.harness import load_inbox, load_patients, load_run
 
 from . import qa
+from .inside import message_context, patient_banner
 from .live import Choice, LiveRunner, resolve
 from .pool import POOL_DIR, POOL_MIN, load_pool, pick, run_paths
 from .steps import STEPS, personalise, practice_ms
@@ -271,6 +272,10 @@ class DashboardState:
             shown = first.get("message") if isinstance(first.get("message"), dict) else {}
             name = (self._patients.get(shown.get("sender_patient_id")) or {}).get("name") if isinstance(self._patients, dict) else None
             message = message_view(shown, first.get("strip"), sender_name=name) if first else None
+            if message is not None:  # the banner and the routing lines come from the sender's record and the message
+                record = self._patients.get(shown.get("sender_patient_id")) if isinstance(self._patients, dict) else None
+                message["patient"] = patient_banner(record, on=shown.get("received_at"))
+                message["context"] = message_context(shown)
             inbox = self._inbox
             if self.variant and isinstance(inbox, dict) and shown.get("id"):  # this variant's message replaces msg-004
                 inbox = {k: v for k, v in inbox.items() if k != "msg-004"} | {shown["id"]: shown}
