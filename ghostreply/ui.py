@@ -105,17 +105,21 @@ _SIGNOFF_WORD = r"(?:thanks|thank you|many thanks|best regards|best wishes|kind 
 _SIGNOFF = re.compile(r"\s*" + _SIGNOFF_WORD + r"\b", re.I)
 _SIGNOFF_ONLY = re.compile(r"\s*" + _SIGNOFF_WORD + r"\s*[,!.]*\s*\Z", re.I)
 _BLANK_RUN = re.compile(r"(?:\n[ \t]*){4,}")  # three or more blank lines in a row
+FOLD_LINES = 12  # a portal preview never shows more than this many lines
 
 
 def _fold(body: str) -> tuple[str, bool]:
-    """Cut a message the way a portal preview does: after the sender's sign-off (and the name under it), or
-    before the first run of three blank lines. Display only; nothing downstream sees this."""
+    """Cut a message the way a portal preview does: after the sender's sign-off (and the name under it), before
+    the first run of three blank lines, or after FOLD_LINES lines, whichever comes first. Display only;
+    nothing downstream sees this."""
     cuts = []
     m = _BLANK_RUN.search(body)
     if m:
         cuts.append(m.start())
     pos = 0
     lines = body.split("\n")
+    if len(lines) > FOLD_LINES:
+        cuts.append(len("\n".join(lines[:FOLD_LINES])))
     for i, line in enumerate(lines):
         end = pos + len(line)
         if body[:pos].strip() and len(line.strip()) <= 60 and _SIGNOFF.match(line):

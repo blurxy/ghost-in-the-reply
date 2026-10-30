@@ -187,6 +187,14 @@ def test_rendered_view_unfolded_shows_the_rest():
     assert not any(0xE0000 <= ord(c) <= 0xE007F for c in out)
 
 
+def test_rendered_view_caps_a_long_message_at_twelve_lines():
+    body = "".join(f"<p>line {n}</p>" for n in range(1, 21))
+    out = render(ui.rendered_view(message(body)))
+    assert "line 12" in out and "line 13" not in out
+    assert "show more" in out
+    assert "line 20" in render(ui.rendered_view(message(body), fold=False))
+
+
 def test_rendered_view_short_message_has_no_show_more():
     out = render(ui.rendered_view(message("<p>Can I move my visit to Friday?</p>")))
     assert "show more" not in out
