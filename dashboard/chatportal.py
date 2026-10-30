@@ -16,6 +16,8 @@ Strict, because this is the one place a typed line reaches the model:
 from __future__ import annotations
 
 import importlib
+import inspect
+import json
 import threading
 import time
 from typing import Any, Callable
@@ -37,6 +39,8 @@ ACTIONS = ("view", "guard", "reset")  # the whole control surface besides sendin
 EXPECTED_LEVEL = {0: "possessed", 1: "whispering"}  # what a validated preset scores, per guard
 SENDER = "Barnaby Gourdsworth"
 HISTORY = 6  # exchanges kept in the thread
+MAX_EVENTS = 400  # activity rows kept per exchange (a run makes about ten)
+THINKING = "off (think: false, for speed)"  # what every request in the run log says: the harness sends think: false
 
 
 class Backend:
@@ -47,9 +51,15 @@ class Backend:
                  refusals: tuple = ()) -> None:
         self._run_chat, self.presets, self.cap = run_chat, presets, int(cap)
         self.preset_paths, self.refusals = preset_paths, tuple(refusals)
+        try:  # the lead's progress callback: passed only if this run_chat takes it
+            self._takes_events = "on_event" in inspect.signature(run_chat).parameters
+        except (TypeError, ValueError):
+            self._takes_events = False
 
-    def run(self, guard: int, model: Any, deadline_s: float, *, preset: str | None, text: str | None) -> Any:
-        return self._run_chat(bool(guard), model, preset=preset, text=None if preset else text, deadline_s=deadline_s)
+    def run(self, guard: int, model: Any, deadline_s: float, *, preset: str | None, text: str | None,
+            on_event: Callable[[dict], None] | None = None) -> Any:
+        extra = {"on_event": on_event} if self._takes_events and on_event is not None else {}
+        return self._run_chat(bool(guard), model, preset=preset, text=None if preset else text, deadline_s=deadline_s, **extra)
 
 
 def resolve_backend() -> Backend | None:
@@ -74,6 +84,49 @@ def bubble(preset: dict | None, text: str | None) -> dict:
         shown, folded = ui._fold(viewmodel._text(rendered(str(preset["body_html"])), 4000).strip())
         return {"text": shown, "pasted": True, "folded": bool(folded)}
     return {"text": viewmodel._text(preset.get("text"), 4000), "pasted": False, "folded": False}
+
+
+def events_from_run(run: dict) -> list[dict]:
+    """The activity events of a finished run, rebuilt from its run log (a saved replay, or a backend with no progress callback).
+    Same kinds and fields as the live ones; a field the log does not hold is left out, never invented."""
+    d = lambda v: v if isinstance(v, dict) else {}  # noqa: E731
+    guard, message, info = bool(run.get("guard")), d(run.get("message")), d(run.get("strip"))
+    sender = message.get("sender_patient_id")
+    out: list[dict] = [{"kind": "run_start", "t": 0.0, "guard": int(guard), "model": d(run.get("model")).get("name"), "thinking": THINKING}]
+    removed = info.get("removed")
+    if guard and isinstance(removed, list):
+        kinds: dict[str, int] = {}
+        for span in removed:
+            kind = str(d(span).get("kind") or "hidden")
+            kinds[kind] = kinds.get(kind, 0) + 1
+        out.append({"kind": "strip", "removed_hidden": len(removed), "kinds": kinds})
+    turns = [t for t in run.get("turns", []) if isinstance(t, dict)]
+    tools = [e for e in run.get("events", []) if isinstance(e, dict)]
+    used = 0
+    for n, turn in enumerate(turns, 1):
+        response = d(turn.get("response"))
+        out.append({"kind": "model_start", "turn": n})
+        out.append({"kind": "model_done", "turn": n, "ms": turn.get("ms"), "eval_count": turn.get("eval_count"),
+                    "tokens_per_s": turn.get("tokens_per_s"), "response": response})
+        for _ in range(len(response.get("tool_calls") or []) if not guard else 0):  # guard on: the model has no tools
+            if used < len(tools):
+                e, used = tools[used], used + 1
+                patients = [p for p in e.get("patients_touched", []) if isinstance(p, str)]
+                out.append({"kind": "tool_call", "tool": e.get("tool"), "args": e.get("args")})
+                out.append({"kind": "tool_result", "tool": e.get("tool"), "allowed": e.get("allowed"), "patients": patients,
+                            "sender": sender, "sender_only": bool(patients) and all(p == sender for p in patients), "note": e.get("note")})
+    if guard:
+        out.append({"kind": "lookup_sender", "patient": sender})
+        if turns:
+            out.append({"kind": "model_json", "content": d(turns[-1].get("response")).get("content")})
+        if run.get("status") == "drafted":
+            out.append({"kind": "template", "intent": d(run.get("intent")).get("intent"), "to": d(run.get("draft")).get("to")})
+    if run.get("status") == "held":
+        out.append({"kind": "held", "reason": run.get("held_reason")})
+    if run.get("status") == "urgent":
+        out.append({"kind": "urgent", "phrase": run.get("urgent")})
+    out.append({"kind": "run_done", "status": run.get("status"), "level": d(run.get("verdict")).get("level"), "duration_ms": run.get("duration_ms")})
+    return json.loads(json.dumps(out, default=str))
 
 
 def reply_lines(run: dict, view: dict) -> list[str]:
@@ -198,7 +251,8 @@ class ChatSession:
             self.last = (preset, text)
             self.turn = {"n": n, "preset": preset, "guard": guard, "state": "typing", "started": self._clock(),
                          "patient": bubble(backend.presets.get(preset) if preset else None, text), "reply": None,
-                         "badge": None, "note": None, "warn": None, "timeout": self.timeouts[guard], "view": None}
+                         "badge": None, "note": None, "warn": None, "timeout": self.timeouts[guard], "view": None,
+                         "events": [], "events_from": "live"}
             self.turns = (self.turns + [self.turn])[-HISTORY:]
             self._bump()
         threading.Thread(target=self._orchestrate, args=(backend, n, preset, text, guard), daemon=True).start()
@@ -214,7 +268,8 @@ class ChatSession:
                 if self._model is None:
                     box["error"] = "this dashboard is replay-only"
                     return
-                box["run"] = backend.run(guard, self._model(), self.timeouts[guard], preset=preset, text=text)
+                box["run"] = backend.run(guard, self._model(), self.timeouts[guard], preset=preset, text=text,
+                                          on_event=lambda ev: self._push(n, ev))
             except Exception as exc:  # the backend refused (it re-checks the caps) or the model path broke
                 box["error"] = str(exc) if isinstance(exc, backend.refusals) else type(exc).__name__
             finally:
@@ -245,11 +300,40 @@ class ChatSession:
                 why = f"{why}; saved run not loaded ({type(exc).__name__})"
         self._finish(n, run, source, why, guard, timed_out=thread.is_alive() or "took longer" in str(why))
 
+    def _push(self, n: int, event: object) -> None:
+        """The run's own thread calls this the moment something happens: keep the row for the activity panel (never raise)."""
+        try:
+            safe = json.loads(json.dumps(event, default=str)) if isinstance(event, dict) else None
+        except Exception:
+            safe = None
+        if safe is None:
+            return
+        with self._lock:
+            t = next((x for x in self.turns if x["n"] == n), None)
+            if t is not None and len(t["events"]) < MAX_EVENTS:
+                t["events"].append(safe)
+
+    def activity(self) -> dict:
+        """The latest exchange's activity, polled by the page every 300 ms: the live events as they came, or (after a replay) the
+        events rebuilt from the saved run's log, and where they came from."""
+        with self._lock:
+            t = self.turn
+            if t is None:
+                return {"turn": None, "state": "idle", "events": [], "source": None, "thinking": None}
+            start = next((e for e in t["events"] if e.get("kind") == "run_start"), None)
+            return {"turn": t["n"], "state": t["state"], "events": list(t["events"]), "source": t["events_from"],
+                    "thinking": (start or {}).get("thinking")}
+
     def _finish(self, n: int, run: dict | None, source: str, why: str | None, guard: int, timed_out: bool) -> None:
         with self._lock:
             t = self.turn
             if t is None or t["n"] != n:  # reset (or a newer turn) while this one ran
                 return
+            if run is not None and (source == "replay" or not t["events"]):  # no live events: rebuild them from the log
+                try:
+                    t["events"], t["events_from"] = events_from_run(run), "run log"
+                except Exception:
+                    pass
             if run is None:
                 t["state"] = "timed out" if timed_out else "error"
                 t["reply"] = None
