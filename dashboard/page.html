@@ -267,8 +267,8 @@ h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;lette
   <header id="appbar">
     <div class="row1">
       <div class="brand">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="2" y="2" width="28" height="28" rx="8" fill="#ff3df0"/><path d="M16 8v16M8 16h16" stroke="#000" stroke-width="4" stroke-linecap="round"/></svg>
-        <div><b>Hollowveil Memorial</b><span> · Patient Messages</span></div>
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M11 10c0-6 10-6 10 0" fill="none" stroke="#ff3df0" stroke-width="2.4" stroke-linecap="round"/><rect x="6" y="10" width="20" height="19" rx="7" fill="#ff3df0"/><path d="M16 14l3.4 4.5L16 23l-3.4-4.5z" fill="#0b0b10"/></svg>
+        <div><b>Hollowveil Lantern</b><span> · Patient Messages</span></div>
       </div>
       <div class="search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l5 5"/></svg>
@@ -281,15 +281,14 @@ h2{margin:0 0 .6vh;font-size:1em;color:var(--dim);text-transform:uppercase;lette
   </header>
   <nav id="rail" aria-label="Folders">
     <h3>Folders</h3>
-    <div class="item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 2h6l1-2h5"/></svg>Inbox<span class="n" id="rail-n">1</span></div>
-    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 21V4M6 4h12l-3 4 3 4H6"/></svg>Flagged</div>
-    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg>Drafts</div>
-    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L3 11l7 3 3 7z"/><path d="M10 14l11-11"/></svg>Sent</div>
-    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg>Archived</div>
+    <div class="item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5l1 2h6l1-2h5"/></svg>New messages<span class="n" id="rail-n">1</span></div>
+    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/></svg>Draft replies</div>
+    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L3 11l7 3 3 7z"/><path d="M10 14l11-11"/></svg>Sent replies</div>
+    <div class="item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10h14V9M10 13h4"/></svg>Archive</div>
     <h3>Labels</h3>
-    <div class="item"><i class="chip" style="background:#00e5ff"></i>Scheduling</div>
-    <div class="item"><i class="chip" style="background:#00e676"></i>Refills</div>
-    <div class="item"><i class="chip" style="background:#ffd600"></i>Billing</div>
+    <div class="item"><i class="chip" style="background:#00e5ff"></i>Appointments</div>
+    <div class="item"><i class="chip" style="background:#00e676"></i>Care questions</div>
+    <div class="item"><i class="chip" style="background:#ffd600"></i>Coverage</div>
     <div class="wisp on" id="rail-wisp"><i></i><span>Wisp AI drafts: On</span></div>
   </nav>
   <div id="stage"></div>
@@ -462,7 +461,7 @@ function noRun(stage) { stage.append(el("div", "sub", "No run to show.")); }
 
 /* ---- the app's pieces: avatars, the message list, the reading pane, the splash cards (inline SVG, no fonts, no CDN) ---- */
 const AVATARS = ["#9ad1ff", "#ffb3f8", "#a5f3c4", "#ffd98a", "#c4b5fd", "#fca5a5"];
-const LABEL_COLORS = { Scheduling: "#00e5ff", Refills: "#00e676", Billing: "#ffd600" };
+const LABEL_COLORS = { Appointments: "#00e5ff", "Care questions": "#00e676", Coverage: "#ffd600" };
 const SVG_NS = "http://www.w3.org/2000/svg";
 const TOOLS = [["Reply", "M9 14L4 9l5-5M4 9h10a6 6 0 016 6v3"], ["Forward", "M15 14l5-5-5-5M20 9H10a6 6 0 00-6 6v3"],
                ["Archive", "M3 5h18v4H3zM5 9v10h14V9M10 13h4"], ["Flag", "M6 21V4M6 4h12l-3 4 3 4H6"]];
@@ -486,8 +485,10 @@ function icon(d) {
 function logo(cls) {
   const s = svg("0 0 32 32", { "aria-hidden": "true" });
   if (cls) s.setAttribute("class", cls);
-  s.append(svgPart("rect", { x: "2", y: "2", width: "28", height: "28", rx: "8", fill: "#ff3df0" }),
-           svgPart("path", { d: "M16 8v16M8 16h16", stroke: "#000", "stroke-width": "4", "stroke-linecap": "round" }));
+  // the Hollowveil Lantern mark: a handle, a rounded lantern body and a diamond of light (three shapes)
+  s.append(svgPart("path", { d: "M11 10c0-6 10-6 10 0", fill: "none", stroke: "#ff3df0", "stroke-width": "2.4", "stroke-linecap": "round" }),
+           svgPart("rect", { x: "6", y: "10", width: "20", height: "19", rx: "7", fill: "#ff3df0" }),
+           svgPart("path", { d: "M16 14l3.4 4.5L16 23l-3.4-4.5z", fill: "#0b0b10" }));
   return s;
 }
 function initials(name) {
@@ -653,7 +654,7 @@ function meterParts(run) {
   box.classList.add("lvl-" + m.level);
   box.append(track(), el("div", "word", word), el("div", "mcap", m.caption));
   const strip = el("div", "mstrip hide lvl-" + m.level);
-  strip.append(el("div", "sword", word), track(), el("div", "scap", m.caption));
+  strip.append(el("div", "sword", word), track(), el("div", "scap", m.strip || m.caption));
   const evidence = el("div", "evidence");
   const lines = [];
   m.leak.concat(m.phishing).forEach((t) => lines.push(el("div", "r", "✗ " + t)));
@@ -752,7 +753,7 @@ const DRAW = {
     const { reading, side, m } = inboxPanes(stage, { drawer: true, compact: true });
     if (m) reading.append(staffBody(m));
     const trace = traceCard(run, 500);
-    const draft = draftCard(run, "✦ Draft by Wisp");
+    const draft = draftCard(run, "Review Wisp's draft");
     draft.classList.add("composer");
     reading.append(draft);
     side.append(el("div", "label", "Wisp activity"), trace.card);

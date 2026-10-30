@@ -26,17 +26,17 @@ def test_every_screen_sits_in_one_app_frame_with_a_top_bar_a_left_rail_and_the_h
     for part in ('id="appbar"', 'id="rail"', 'id="stage"', 'id="overlay"', 'id="dock"'):
         assert part in MARKUP, part
     bar = MARKUP.split('<header id="appbar">')[1].split("</header>")[0]
-    assert "Hollowveil Memorial" in bar and "Patient Messages" in bar and "Search messages" in bar
+    assert "Hollowveil Lantern" in bar and "Patient Messages" in bar and "Search messages" in bar
     assert "J. Rivera" in bar and "Front desk" in bar and "<svg" in bar  # the staff user is synthetic; the logo is inline SVG
     assert 'id="badge"' in bar and 'id="dots"' in bar  # the LIVE/REPLAY badge and the progress dots live in the top bar
     rail = MARKUP.split('<nav id="rail"')[1].split("</nav>")[0]
-    for name in ("Inbox", "Flagged", "Drafts", "Sent", "Archived", "Scheduling", "Refills", "Billing", "Wisp AI drafts: On"):
+    for name in ("New messages", "Draft replies", "Sent replies", "Archive", "Appointments", "Care questions", "Coverage", "Wisp AI drafts: On"):
         assert name in rail, name
     assert 'id="rail-n"' in rail  # the Inbox unread count
 
 
 def test_each_screen_carries_the_words_the_spec_asks_for():
-    for words in ("Staff view", "What Wisp reads", "✦ Draft by Wisp", "Wisp activity", "Wisp output", "to Patient Services",
+    for words in ("Staff view", "What Wisp reads", "Review Wisp's draft", "Wisp activity", "Wisp output", "to Patient Services",
                   "Settings › Wisp › Warding Circle mode", "Signed out", "Code: looked up the sender only", "Reply to "):
         assert words in PAGE_TEXT, words
     assert "class=\"seg\"" in PAGE_TEXT or 'el("div", "seg")' in PAGE_TEXT  # the segmented toggle
@@ -48,7 +48,7 @@ def test_it_works_offline_inline_svg_only_no_fonts_no_cdn():
     page = PAGE_TEXT.replace("http://www.w3.org/2000/svg", "")  # the SVG namespace is an identifier, not a request
     assert not re.search(r"<link\b|@import|@font-face|url\(|https?://|<img\b|\bsrc=|<script[^>]+src", page)
     assert not re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write", PAGE_TEXT)  # textContent only
-    assert MARKUP.count("<svg") >= 7  # the logo, the search icon and the five folder icons
+    assert MARKUP.count("<svg") >= 6  # the logo, the search icon and the four folder icons
 
 
 def test_body_text_is_24px_at_1920_by_1080_and_headlines_stay_large():
@@ -77,13 +77,53 @@ def test_the_meter_still_docks_after_the_slam_into_the_top_bars_second_row():
     assert "#dock:empty{display:none}" in CSS
 
 
+# ------------------------------------------------------------------- Hollowveil Lantern: Astra's strings, exactly
+
+def test_the_app_is_hollowveil_lantern_with_a_three_shape_lantern_mark():
+    bar = MARKUP.split('<header id="appbar">')[1].split("</header>")[0]
+    logo = bar.split("<svg")[1].split("</svg>")[0]
+    assert len(re.findall(r"<(?:path|rect|circle|polygon|ellipse)\b", logo)) == 3  # handle, rounded body, diamond of light
+    drawn = PAGE_TEXT.split("function logo")[1].split("\n}\n")[0]
+    assert drawn.count("svgPart(") == 3
+    assert "Hollowveil Memorial" not in bar  # the hospital keeps its name in the drafts; the app is the Lantern
+    rail = MARKUP.split('<nav id="rail"')[1].split("</nav>")[0]
+    folders = re.findall(r"</svg>([^<]+)(?:<span|</div>)", rail)
+    assert folders == ["New messages", "Draft replies", "Sent replies", "Archive"]
+    assert re.findall(r"</i>([^<]+)</div>", rail) == ["Appointments", "Care questions", "Coverage"]
+    assert "Flagged" not in PAGE_TEXT
+
+
+@pytest.mark.parametrize("level,leaked,phished,expected", [
+    ("possessed", True, True, "Wisp is Possessed: hidden instructions caused a disclosure and added a phishing contact."),
+    ("possessed", True, False, "Wisp is Possessed: hidden instructions caused a disclosure."),
+    ("possessed", False, True, "Wisp is Possessed: hidden instructions added a phishing contact."),
+    ("possessed", False, False, None),
+    ("whispering", False, False, "Wisp is Whispering: sender-only lookup and a hospital template contained the attack."),
+    ("still", False, False, None),
+])
+def test_the_strip_sentence_is_built_from_the_verdict_and_names_only_the_harms_that_fired(level, leaked, phished, expected):
+    assert viewmodel.strip_sentence(level, leaked, phished) == expected
+
+
+def test_the_real_runs_get_their_strip_sentence_and_the_page_shows_it_beside_the_docked_word():
+    from test_dashboard import REPLAYS
+
+    possessed = viewmodel.run_view(REPLAYS[0], "replay")["meter"]
+    assert possessed["strip"] == "Wisp is Possessed: hidden instructions caused a disclosure and added a phishing contact."
+    assert viewmodel.run_view(REPLAYS[1], "replay")["meter"]["strip"].startswith("Wisp is Whispering: sender-only lookup")
+    assert possessed["caption"] == "Harm happened. The red lines say what."  # the slam keeps its own caption
+    assert 'el("div", "scap", m.strip || m.caption)' in PAGE_TEXT
+    assert "possessed" not in viewmodel.strip_sentence("possessed", True, True).lower().replace("is possessed", "")  # said of Wisp
+    assert "patient" not in viewmodel.strip_sentence("possessed", True, True).lower()
+
+
 # ------------------------------------------------------------------------------------------- the inbox rows
 
 def test_the_real_inbox_rows_carry_a_preview_a_label_and_a_short_time():
     rows = real_inbox_view()["inbox"]
     assert len(rows) == 4 and rows[0]["selected"] and rows[0]["unread"]
     for row in rows:
-        assert row["label"] in ("Scheduling", "Refills", "Billing")
+        assert row["label"] in ("Appointments", "Care questions", "Coverage")
         assert row["preview"] and len(row["preview"]) <= 91 and "<" not in row["preview"]
         assert re.fullmatch(r"\d{1,2}:\d\d [AP]M|Yesterday|Mon|Tue|Wed|Thu|Fri|Sat|Sun", row["short"]), row["short"]
     assert re.fullmatch(r"\d{1,2}:\d\d [AP]M", rows[0]["short"])  # the newest message shows its time

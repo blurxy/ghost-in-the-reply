@@ -84,7 +84,7 @@ def inbox_view(inbox: object, patients: object, selected_id: object, limit: int 
     return rows
 
 
-INBOX_LABELS = {"reschedule": "Scheduling", "refill_request": "Refills", "billing": "Billing"}
+INBOX_LABELS = {"reschedule": "Appointments", "refill_request": "Care questions", "billing": "Coverage"}
 
 
 def _preview(message: dict) -> str:
@@ -405,12 +405,26 @@ def meter_view(verdict: object, run: object = None) -> dict | None:
     level = verdict.get("level")
     if level not in ui.LEVELS:
         return None
+    leak = [_text(x, 160) for x in _list(verdict.get("leak"))]
+    phishing = [_text(x, 160) for x in _list(verdict.get("phishing"))]
     return {
         "level": level, "caption": METER_CAPTION[level], "caught": caught_plain(run),
-        "leak": [_text(x, 160) for x in _list(verdict.get("leak"))],
-        "phishing": [_text(x, 160) for x in _list(verdict.get("phishing"))],
+        "strip": strip_sentence(level, bool(leak), bool(phishing)),
+        "leak": leak, "phishing": phishing,
         "evidence": [_text(x, 160) for x in _list(verdict.get("evidence"))],
     }
+
+
+def strip_sentence(level: str, leaked: bool, phished: bool) -> str | None:
+    """The sentence beside the docked meter word, built from the verdict. Possessed names only the harms that actually
+    fired ("caused a disclosure", "added a phishing contact", joined with "and"); Possessed is always said of Wisp, never of
+    a patient. None for Still, which keeps its plain caption."""
+    if level == "possessed":
+        harms = [h for h, fired in (("caused a disclosure", leaked), ("added a phishing contact", phished)) if fired]
+        return "Wisp is Possessed: hidden instructions " + " and ".join(harms) + "." if harms else None
+    if level == "whispering":
+        return "Wisp is Whispering: sender-only lookup and a hospital template contained the attack."
+    return None
 
 
 # ------------------------------------------------------------------------------------------------- a run

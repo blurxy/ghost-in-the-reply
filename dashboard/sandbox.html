@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Haunted Inbox: try your own ghost</title>
+<title>Haunted Inbox: try a haunting</title>
 <style>
 :root{
   --bg:#0b0b10; --card:#12121a; --line:#2a2a3a; --fg:#f2f2f7; --dim:#a0a0b4;
@@ -31,6 +31,7 @@ button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
 #status{margin-top:10px;min-height:1.4em;font-weight:700}
 #status.wait{color:var(--cyn)} #status.bad{color:var(--red)} #status.ok{color:var(--grn)}
 .fine{color:var(--dim);font-size:.9rem;margin-top:8px}
+.empty{color:var(--dim);font-weight:700;text-align:center;padding:36px 16px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
 @media (max-width:1000px){.grid{grid-template-columns:1fr}}
 .badge{display:inline-block;font-weight:800;padding:.15em .8em;border-radius:999px;border:2px solid var(--grn);color:var(--grn);background:#00331a;margin-bottom:12px}
@@ -62,7 +63,7 @@ button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
 </head>
 <body>
 <main>
-  <h1>Try your own ghost</h1>
+  <h1>Try a haunting</h1>
   <p class="cap" id="caption"></p>
 
   <div class="card" id="unavailable" hidden>
@@ -75,7 +76,7 @@ button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
     <div class="count" id="visible-count"></div>
 
     <label for="ghost">Hidden text</label>
-    <textarea id="ghost" spellcheck="false" placeholder="Your ghost: what should Wisp secretly do?"></textarea>
+    <textarea id="ghost" spellcheck="false" placeholder="Write a hidden instruction for Wisp…"></textarea>
     <div class="count" id="ghost-count"></div>
 
     <div class="row">
@@ -84,13 +85,14 @@ button:disabled{background:var(--line);color:var(--dim);cursor:not-allowed}
         <select id="trick"></select>
       </div>
       <div>
-        <button type="submit" id="run">Run: guard off, then guard on</button>
+        <button type="submit" id="run">Run guard off + on</button>
       </div>
     </div>
     <div id="status" role="status"></div>
     <div class="fine" id="fine"></div>
   </form>
 
+  <div class="card empty" id="empty" hidden>Your first comparison appears here.</div>
   <div class="grid" id="results"></div>
 </main>
 
@@ -128,6 +130,7 @@ async function init() {
   $("#trick").replaceChildren(...info.tricks.map((t) => { const o = el("option", null, t.label); o.value = t.key; return o; }));
   $("#fine").textContent = info.no_replay + " One run at a time. Guard off gets " + info.timeouts["0"] + " s, guard on gets " + info.timeouts["1"] + " s.";
   $("#form").hidden = false;
+  $("#empty").hidden = false;
   counts();
   $("#visible").addEventListener("input", counts);
   $("#ghost").addEventListener("input", counts);
@@ -140,7 +143,8 @@ async function run() {
   $("#run").disabled = true;
   $("#results").replaceChildren();
   const t0 = Date.now();
-  const tick = () => setStatus("Running live on Gemma 4: guard off first, then guard on. " + Math.floor((Date.now() - t0) / 1000) + " s", "wait");
+  $("#empty").hidden = true;
+  const tick = () => setStatus("Running both modes. One laptop GPU; one run at a time. " + Math.floor((Date.now() - t0) / 1000) + " s", "wait");
   tick();
   ticker = setInterval(tick, 500);
   try {

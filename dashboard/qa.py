@@ -28,7 +28,7 @@ QUESTIONS: list[tuple[str, str]] = [
      "E4B is the offline fallback."),
     ("Is this live?",
      "Look at the badge: LIVE means Gemma 4 just ran on this laptop; REPLAY means a saved real run, and the screen "
-     "never labels a replay as live."),
+     "never labels a replay as live. Random mode picks one of six pre-tested attacks, then runs it live."),
     ("Why Whispering and not Still in guard mode?",
      "Because an attack was there and got contained. Still would hide that something was tried."),
     ("Does strip() catch everything?",

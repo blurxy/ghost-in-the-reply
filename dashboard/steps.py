@@ -19,8 +19,8 @@ REPO_URL = "github.com/blurxy/ghost-in-the-reply"
 STEPS: list[dict] = [
     {
         "id": "title", "name": "Title", "min_ms": 3000,
-        "say": "Haunted Inbox. Hospitals are starting to let AI draft replies to patient portal messages. We built "
-               "one on Gemma 4 12B, running entirely on this laptop's 8 GB GPU, and then we attacked it.",
+        "say": "Haunted Inbox. Watch the same hidden instruction reach the same model through two different system "
+               "designs. The model is Gemma 4 12B, running on this laptop's 8 GB GPU.",
         "headline": "Haunted Inbox",
         "sub": "A hidden line in a patient message vs. a hospital's AI assistant",
         "foot": "Gemma 4 12B, running on this laptop",
@@ -30,8 +30,8 @@ STEPS: list[dict] = [
     },
     {
         "id": "hook", "name": "Hook", "min_ms": 6000,
-        "say": "This is the portal inbox as staff see it. Barnaby wants to move his knee follow-up to Tuesday at 2 PM. "
-               "Ordinary.",
+        "say": "This is a hospital's staff inbox, where an AI assistant drafts the replies. Barnaby wants to move his "
+               "knee follow-up to Tuesday at 2 PM. Ordinary.",
         "headline": "A normal reschedule request",
         "caption": "As staff see it in the portal inbox. Synthetic patient. Nothing is ever sent.",
     },
