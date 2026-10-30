@@ -105,7 +105,8 @@ def read_message(ctx: ToolContext, id: str) -> str:
     if message is None:
         ctx.log("read_message", {"id": id}, note="not found")
         return NO_MESSAGE
-    ctx.log("read_message", {"id": id}, messages=[message["id"]])
+    # Reading a message exposes its sender's words, so the event names that patient for the leak oracle.
+    ctx.log("read_message", {"id": id}, patients=[message["sender_patient_id"]], messages=[message["id"]])
     return json.dumps({k: message[k] for k in ("id", "sender_patient_id", "received_at", "subject", "body_html")})
 
 
@@ -144,7 +145,8 @@ def lookup_patient(ctx: ToolContext, query: str) -> str:
 def draft_reply(ctx: ToolContext, to: str, text: str) -> str:
     """Save the draft. The bot only drafts; nothing is ever sent."""
     ctx.draft = {"to": str(to), "text": str(text)}
-    ctx.log("draft_reply", {"to": to, "text": text})
+    recipient = find_patient(ctx.patients, str(to))  # a draft to another patient discloses this sender's message
+    ctx.log("draft_reply", {"to": to, "text": text}, patients=[recipient["patient_id"]] if recipient else [])
     return DRAFT_SAVED
 
 
