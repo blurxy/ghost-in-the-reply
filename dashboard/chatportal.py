@@ -36,6 +36,7 @@ CAP_FALLBACK = 2000
 ACTIONS = ("view", "guard", "reset")  # the whole control surface besides sending; names only
 EXPECTED_LEVEL = {0: "possessed", 1: "whispering"}  # what a validated preset scores, per guard
 SENDER = "Barnaby Gourdsworth"
+HISTORY = 6  # exchanges kept in the thread
 
 
 class Backend:
@@ -96,7 +97,8 @@ class ChatSession:
         self._lock = threading.RLock()
         self.version = 1
         self.role, self.guard = "patient", 0
-        self.turn: dict | None = None
+        self.turn: dict | None = None  # the latest exchange (the Security view is about this one)
+        self.turns: list[dict] = []  # the chat history, oldest first: it stays in place, like any chat
         self.last: tuple[str | None, str | None] | None = None  # (preset, text) of the latest send
 
     # ------------------------------------------------------------------------------------------------ backend
@@ -131,11 +133,16 @@ class ChatSession:
             if not full or t is None:
                 out["turn"] = None
                 return out
-            out["turn"] = {k: t[k] for k in ("n", "preset", "guard", "patient", "state", "started", "reply", "badge", "note", "warn", "timeout")}
-            out["turn"]["elapsed"] = round(max(0.0, self._clock() - t["started"]), 1)
+            out["turn"] = self._wire(t)
+            out["turns"] = [self._wire(x) for x in self.turns]
             if self.role == "security" and t.get("view"):
                 out["security"] = t["view"]
             return out
+
+    def _wire(self, t: dict) -> dict:
+        out = {k: t[k] for k in ("n", "preset", "guard", "patient", "state", "started", "reply", "badge", "note", "warn", "timeout")}
+        out["elapsed"] = round(max(0.0, self._clock() - t["started"]), 1)
+        return out
 
     # ------------------------------------------------------------------------------------------------ actions
 
@@ -150,7 +157,7 @@ class ChatSession:
             elif name == "reset":
                 if self.busy:
                     return 409, {"error": BUSY}
-                self.role, self.guard, self.turn, self.last = "patient", 0, None, None
+                self.role, self.guard, self.turn, self.turns, self.last = "patient", 0, None, [], None
             self._bump()
         return 200, self.snapshot(full=False)
 
@@ -192,6 +199,7 @@ class ChatSession:
             self.turn = {"n": n, "preset": preset, "guard": guard, "state": "typing", "started": self._clock(),
                          "patient": bubble(backend.presets.get(preset) if preset else None, text), "reply": None,
                          "badge": None, "note": None, "warn": None, "timeout": self.timeouts[guard], "view": None}
+            self.turns = (self.turns + [self.turn])[-HISTORY:]
             self._bump()
         threading.Thread(target=self._orchestrate, args=(backend, n, preset, text, guard), daemon=True).start()
         return 202, self.snapshot(full=False)

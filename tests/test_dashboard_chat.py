@@ -367,7 +367,7 @@ DASH_PAGE = (CHAT_PAGE.with_name("page.html")).read_text(encoding="utf-8")
 
 
 def test_the_chat_flow_is_title_chat_why_closer_and_the_staff_flow_is_unchanged():
-    assert [s["id"] for s in dsteps.flow_steps("chat")] == ["title", "chat", "why", "closer"]
+    assert [s["id"] for s in dsteps.flow_steps("chat")] == ["title", "chat", "why", "closer", "hook", "reveal"]  # the staff inbox follows
     assert [s["id"] for s in dsteps.flow_steps("staff")] == [s["id"] for s in dsteps.STEPS]
     assert [s["id"] for s in dsteps.flow_steps("anything else")] == [s["id"] for s in dsteps.STEPS]
 
@@ -390,7 +390,7 @@ def chat_state(**kw) -> DashboardState:
 def test_state_in_the_chat_flow_has_four_steps_and_says_which_flow_and_whether_stage_buttons_exist():
     state = chat_state()
     snap = state.snapshot()
-    assert snap["flow"] == "chat" and snap["n"] == 4 and snap["stage"] is False
+    assert snap["flow"] == "chat" and snap["n"] == 6 and snap["stage"] is False  # four main steps, then the staff inbox
     state.stage_enabled = True
     assert state.snapshot()["stage"] is True
     assert DashboardState(DEMO, live=None, mode="replay").snapshot()["flow"] == "staff"
@@ -516,3 +516,19 @@ def test_the_real_run_chat_takes_a_typed_message_and_refuses_an_overlong_one():
     turn = wait_done(chat)["turn"]
     assert turn["state"] == "done" and turn["badge"]["source"] == "live" and turn["preset"] is None
     assert chat.send({"text": "w" * 2001})[0] == 400
+
+
+def test_the_chat_history_stays_in_place_and_reset_clears_it():
+    chat = session()
+    for preset in ("visible", "hidden", "visible"):
+        chat.send({"preset": preset})
+        wait_done(chat)
+    turns = chat.snapshot()["turns"]
+    assert [t["preset"] for t in turns] == ["visible", "hidden", "visible"] and [t["n"] for t in turns] == [1, 2, 3]
+    assert chat.snapshot()["turn"]["n"] == 3 and all(t["reply"] for t in turns)
+    for _ in range(cp.HISTORY + 2):
+        chat.send({"preset": "visible"})
+        wait_done(chat)
+    assert len(chat.snapshot()["turns"]) == cp.HISTORY  # bounded: the oldest fall off
+    chat.act("reset")
+    assert chat.snapshot()["turn"] is None and chat.snapshot().get("turns") is None

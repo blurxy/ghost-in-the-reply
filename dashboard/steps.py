@@ -118,7 +118,10 @@ FLOWS = {"staff": ("title", "hook", "reveal", "possessed", "whispering", "why", 
 def flow_steps(flow: str) -> list[dict]:
     """The steps for one flow, in order. Unknown flows are the staff inbox (the original seven)."""
     by_id = {s["id"]: s for s in STEPS} | {CHAT_STEP["id"]: CHAT_STEP}
-    return [by_id[i] for i in FLOWS.get(flow, FLOWS["staff"])]
+    out = [by_id[i] for i in FLOWS.get(flow, FLOWS["staff"])]
+    if flow == "chat":  # the staff inbox stays reachable, after the main flow: a real mail client to click around in
+        out += [dict(by_id["hook"], name="Staff inbox"), dict(by_id["reveal"], name="Staff inbox: what Wisp reads")]
+    return out
 
 
 # `--random`: the two lines that name the variant's details (planning/DEMO-SCRIPT.md). {how} is the hiding trick with

@@ -26,7 +26,7 @@ from .pool import POOL_DIR, POOL_MIN, load_pool, pick, run_paths
 from .steps import STEPS, flow_steps, personalise, practice_ms
 from .viewmodel import badge, inbox_view, message_view, run_view
 
-ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal", "role", "view_mode")
+ACTIONS = ("next", "back", "goto", "rerun", "toggle_mode", "reveal", "role", "view_mode", "open_message")
 PREFLIGHT_EVERY_S = 10.0
 STALE_LIVE_AFTER_S = 600.0  # a live result older than this is run again when the title opens (Rafi: 10 minutes)
 REPLAY_FILES = {0: "msg-004-guard0.json", 1: "msg-004-guard1.json"}
@@ -46,6 +46,7 @@ class DashboardState:
         self._pool_dir = Path(pool_dir) if pool_dir else POOL_DIR
         self.random_mode = random_mode
         self.flow = flow  # "staff": the staff inbox steps (default) | "chat": title, patient chat, why, closer
+        self.selected: str | None = None  # the staff inbox message the front desk has opened (None: the demo's own, msg-004)
         self.inside = False  # who is looking at the staff inbox: the Security team (True) or the front desk
         self.wisp_view = False  # the open message: "What Wisp reads" (True) or the staff view
         self.stage_enabled = False  # set by __main__ with --stage: the presenter shows its stage buttons
@@ -246,6 +247,14 @@ class DashboardState:
         elif age > STALE_LIVE_AFTER_S:
             self.live.restart()
 
+    def _openable(self) -> list[str]:
+        """The message ids the inbox list shows (the demo's own message and the ordinary ones), by id."""
+        if not isinstance(self._inbox, dict):
+            return []
+        first = self.replay.get(0) or self.replay.get(1) or {}
+        shown = first.get("message") if isinstance(first.get("message"), dict) else {}
+        return [r["id"] for r in inbox_view(self._inbox, self._patients, shown.get("id"))]
+
     def snapshot(self) -> dict:
         with self._lock:
             now = self._clock()
@@ -275,7 +284,7 @@ class DashboardState:
                 "backup": bool(self.backup and self.backup.is_file()),
                 "replay_error": self.replay_error, "preflight": list(self._preflight_result),
                 "random": self._random_view(), "practice": self._practice_view(),
-                "flow": self.flow, "stage": bool(self.stage_enabled), "inside": self.inside, "wisp_view": self.wisp_view,
+                "flow": self.flow, "stage": bool(self.stage_enabled), "inside": self.inside, "wisp_view": self.wisp_view, "selected": self.selected,
             }
 
     def views(self, *, force_replay: bool = False) -> dict:
@@ -300,8 +309,18 @@ class DashboardState:
             inbox = self._inbox
             if self.variant and isinstance(inbox, dict) and shown.get("id"):  # this variant's message replaces msg-004
                 inbox = {k: v for k, v in inbox.items() if k != "msg-004"} | {shown["id"]: shown}
-            return {"message": message, "inbox": inbox_view(inbox, self._patients, shown.get("id")) if first else [],
-                    "runs": runs, "replay_error": self.replay_error}
+            rows = inbox_view(inbox, self._patients, shown.get("id")) if first else []
+            messages: dict[str, dict] = {}  # every message the list shows, opened by a click (the demo's own keeps its run's strip info)
+            for row in rows:
+                msg = inbox.get(row["id"]) if isinstance(inbox, dict) else None
+                if row["id"] == shown.get("id") and message is not None:
+                    messages[row["id"]] = message
+                elif isinstance(msg, dict):
+                    rec = self._patients.get(msg.get("sender_patient_id")) if isinstance(self._patients, dict) else None
+                    view = message_view(msg, None, sender_name=(rec or {}).get("name"))
+                    view["patient"], view["context"] = patient_banner(rec, on=msg.get("received_at")), message_context(msg)
+                    messages[row["id"]] = view
+            return {"message": message, "messages": messages, "inbox": rows, "runs": runs, "replay_error": self.replay_error}
 
     def _entered_chat_step(self) -> None:
         """Opening the patient chat starts it clean: Warding Circle off, the patient's view, an empty thread (a run still in
@@ -315,6 +334,12 @@ class DashboardState:
             now = self._clock()
             self.note = None
             last = len(self.steps) - 1
+            if action == "open_message":  # a click on a message in the list: only ids the list shows can be opened
+                if isinstance(arg, str) and arg in self._openable():
+                    self.selected = arg
+                    self.wisp_view = False
+                self.epoch += 1
+                return self.snapshot()
             if action in ("role", "view_mode"):  # the audience screen's own clicks: same server actions as the presenter's buttons
                 on = {"role": ("security", "inside", True), "view_mode": ("wisp", True)}[action]
                 now_on = (not (self.inside if action == "role" else self.wisp_view)) if arg is None else arg in on
@@ -337,7 +362,7 @@ class DashboardState:
                 target = max(0, min(last, target))
                 if target != self.step:
                     self.step = target
-                    self.wisp_view = False
+                    self.wisp_view, self.selected = False, None
                     self._entered_chat_step()
                     self.step_started = now
                     self.epoch += 1
