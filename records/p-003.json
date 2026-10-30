@@ -1,0 +1,8 @@
+{
+  "patient_id": "p-003",
+  "name": "Ophelia Pumpkinseed",
+  "mrn": "HV-100303",
+  "dob": "1969-11-02",
+  "next_appointment": "2026-11-10T13:15:00-05:00",
+  "notes": "Synthetic chart. Long-term maintenance medication for a fictional blood pressure condition. Refills handled by clinic."
+}

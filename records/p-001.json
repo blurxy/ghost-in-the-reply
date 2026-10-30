@@ -1,0 +1,8 @@
+{
+  "patient_id": "p-001",
+  "name": "Wilhelmina Cobweb",
+  "mrn": "HV-100101",
+  "dob": "1978-03-14",
+  "next_appointment": "2026-11-05T10:30:00-05:00",
+  "notes": "Synthetic chart. Routine follow-up for seasonal allergies. No changes to plan."
+}

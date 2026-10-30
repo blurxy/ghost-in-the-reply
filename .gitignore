@@ -6,3 +6,7 @@ __pycache__/
 .claude/worktrees/
 .claude/settings.local.json
 _to_delete/
+
+# Run logs stay local (they record model output); curated replays live in runs/demo/
+runs/*
+!runs/demo/
