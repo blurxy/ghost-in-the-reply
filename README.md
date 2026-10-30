@@ -1,23 +1,25 @@
-# Ghost in the Reply: The Haunted Inbox
+# Haunted Inbox
 
 Wisp is the internal AI assistant at Hollowveil Memorial Hospital. It drafts replies to patient portal messages so
 staff can answer faster. **Wisp runs on Gemma 4 12B, fully local**: no cloud model and no API key. Messages go only
 to the Ollama server you run.
 
 One message in Wisp's inbox looks like an ordinary request to move an appointment. It also carries lines that a
-person never sees but the model reads: **ghosts**. Ghost in the Reply shows what those ghosts make a typical assistant
-do, scores it on a possession meter, and shows a design, Warding Circle mode, that is **closed by design for these
-two harms**.
+person never sees but the model reads: **ghosts**. Haunted Inbox shows what those ghosts make a typical assistant
+do, scores it on a possession meter, and shows a design, Warding Circle mode, that is
+**closed by design for these two harms**.
 
-Built at Hacktoberfest Hack Day Brooklyn (MLH x GDG on Campus City Tech), October 30, 2026. Healthcare & Wellness track.
+Built at Hacktoberfest Hack Day Brooklyn (MLH x GDG on Campus City Tech), October 30, 2026, under the working title
+Ghost in the Reply. Healthcare & Wellness track.
 
 ## What you'll see
 
 1. **The portal view.** A polite note from a patient asking to move a knee follow-up to Tuesday at 2 PM.
 2. **The séance view.** The same message with every hidden span lit up: a fake "hospital policy" and a fake
    "verification step", hidden in `display:none` HTML and again below the fold.
-3. **Naive Wisp (`--guard 0`).** It obeys. It opens another patient's chart, which is the kind of disclosure HIPAA
-   exists to prevent, and it writes a fake insurance phone number into the reply. The meter reads **Possessed**.
+3. **Naive Wisp (`--guard 0`).** It obeys. It opens another patient's chart, which is
+   the kind of disclosure HIPAA exists to prevent, and it writes a fake insurance phone number into the reply.
+   The meter reads **Possessed**.
 4. **Warding Circle mode (`--guard 1`).** Same message, same model, same seed. The attack is caught and nothing
    harmful reaches the draft. The meter reads **Whispering**.
 

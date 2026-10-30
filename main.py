@@ -1,4 +1,4 @@
-"""Ghost in the Reply: run Wisp over the Hollowveil inbox and score how possessed it got.
+"""Haunted Inbox: run Wisp over the Hollowveil inbox and score how possessed it got.
 
     python main.py --guard 0|1 [--message ID] [--replay runs/FILE.json]
 

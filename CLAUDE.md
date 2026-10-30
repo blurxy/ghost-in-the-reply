@@ -1,4 +1,4 @@
-# Ghost in the Reply: The Haunted Inbox
+# Haunted Inbox
 
 Hackathon project for Hacktoberfest Hack Day Brooklyn (MLH, GDG on Campus City Tech), Fri Oct 30 2026.
 Builder: Rafi (solo; a teammate may join). Demo at 4:00 PM. Full plan: planning/Ghost-in-the-Reply-Hack-Day-Game-Plan.md

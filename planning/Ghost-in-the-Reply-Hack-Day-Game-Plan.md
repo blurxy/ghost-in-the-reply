@@ -174,7 +174,7 @@ The 14-agent pass is done; adversarial verify changed two things materially. **T
 - Sentry manual spans \~double the code and are **off** the critical path → the #1 thing to drop. Fallback: a colored stdout trace (`read_file(README) → INJECTION → read_file(.env) BLOCKED`). Re-add one span around the possession moment only with >20 min spare.
 - Make the flip a single `GUARD=1` env toggle — the same command run twice. That toggle is the demo's spine and survives a flaky possession.
 
-**DEV writeup, second act (honest):** raw single-shot e4b lands the exfil only \~60–75% of the time at \~30s/call; the demo is reliable because you *engineered* it (pre-formed call + temp-0 pinning + redundancy + recorded fallback). Use it as the second act after the two-messages thesis: weak local agents are both trivially injection-hijacked and unreliable to drive.
+**DEV writeup, second act (honest):** raw single-shot e4b lands the exfil only \~60–75% of the time at \~30s/call; the demo is reliable because you *engineered* it (pre-formed call + temp-0 pinning + redundancy + recorded fallback). Use it as the second act after the two-messages thesis: any LLM agent obeys a hidden line that looks like its job, and a local demo is only reliable when engineered.
 
 **Added sources:** [AgentDojo (arXiv:2406.13352)](https://arxiv.org/abs/2406.13352) · [Cisco: Unicode tag injection](https://blogs.cisco.com/ai/understanding-and-mitigating-unicode-tag-prompt-injection) · [Trojan Source (CVE-2021-42574)](https://www.trojansource.codes/) · [Simon Willison: the lethal trifecta](https://simonwillison.net/2025/May/23/) · [Sentry: scrubbing sensitive data](https://docs.sentry.io/platforms/python/data-management/sensitive-data/)
 
