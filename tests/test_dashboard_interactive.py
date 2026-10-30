@@ -133,3 +133,16 @@ def test_the_chat_flow_keeps_the_staff_inbox_reachable_after_the_main_flow():
     ids = [s["id"] for s in flow_steps("chat")]
     assert ids[:4] == ["title", "chat", "why", "closer"] and ids[4:] == ["hook", "reveal"]
     assert [s["id"] for s in flow_steps("staff")][:3] == ["title", "hook", "reveal"]
+
+
+def test_one_palette_the_clinical_light_tokens_and_no_neon_or_glow():
+    for token in ("--canvas:#EDF2F6", "--surface:#FFFFFF", "--ink:#172B3A", "--muted:#465B6B", "--border:#B8C5CE", "--brand:#155E75",
+                  "--selected:#E1EFF5", "--success:#21633B", "--warning:#805400", "--danger:#B42318"):
+        assert token in PAGE_TEXT, token
+    low = PAGE_TEXT.lower()
+    for old in ("#ff3df0", "#00e5ff", "#00e676", "#ffd600", "#0b0b10", "#12121a", "#1b1b2b", "#2a2300", "#00331a", "#00262b", "rgba(255,61,240"):
+        assert old not in low, old  # the old dark neon theme, gone
+    assert "text-shadow" not in low and not re.search(r"box-shadow:0 0 \d", PAGE_TEXT)  # no glows
+    chat = (PAGE.with_name("chat.html")).read_text(encoding="utf-8")
+    for token in ("--canvas:#EDF2F6", "--ink:#172B3A", "--brand:#155E75"):  # the chat page and the app share them
+        assert token in chat, token
