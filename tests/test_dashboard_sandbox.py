@@ -158,7 +158,7 @@ def test_a_second_request_while_busy_is_told_so_and_the_first_still_finishes():
         time.sleep(0.01)
     assert sandbox.busy
     code, out = sandbox.run(body())
-    assert (code, out["error"]) == (409, "Gemma 4 is busy, one run at a time")
+    assert (code, out["error"]) == (409, "Running both modes. One laptop GPU; one run at a time.")
     gate.set()
     worker.join(5)
     assert first["out"][0] == 200 and first["out"][1]["sides"]["0"]["state"] == "ok"
@@ -199,9 +199,9 @@ def test_the_harness_deadline_also_reads_as_timed_out():
     wait_until_free(sandbox)
 
 
-def test_the_timeouts_are_60_and_30_seconds():
-    assert dsb.TIMEOUTS == {0: 60, 1: 30}
-    assert Sandbox(lambda: None, backend=real_backend()).info()["timeouts"] == {"0": 60, "1": 30}
+def test_the_timeouts_are_60_and_45_seconds():
+    assert dsb.TIMEOUTS == {0: 60, 1: 45}
+    assert Sandbox(lambda: None, backend=real_backend()).info()["timeouts"] == {"0": 60, "1": 45}
 
 
 def test_a_model_that_crashes_is_an_error_on_its_side_not_a_dead_page():
@@ -291,7 +291,7 @@ def replay_only_server():
 def test_the_sandbox_page_and_its_info_are_served(live_server):
     _, base = live_server
     status, headers, page = call(base + "/sandbox")
-    assert status == 200 and headers["Content-Type"].startswith("text/html") and b"Try your own ghost" in page
+    assert status == 200 and headers["Content-Type"].startswith("text/html") and b"Try a haunting" in page
     assert headers["X-Content-Type-Options"] == "nosniff"
     info = json.loads(call(base + "/api/sandbox/info")[2])
     assert info["available"] and info["cap"] == 2000 and info["visible"] == gsb.DEFAULT_VISIBLE
@@ -323,7 +323,7 @@ def test_over_the_cap_over_http_is_a_400_and_a_second_request_while_busy_is_a_40
     while not held.busy and time.time() < end:
         time.sleep(0.01)
     status, _, raw = call(base + "/api/sandbox/run", json.dumps(body()).encode())
-    assert status == 409 and json.loads(raw)["error"] == "Gemma 4 is busy, one run at a time"
+    assert status == 409 and json.loads(raw)["error"] == "Running both modes. One laptop GPU; one run at a time."
     gate.set()
     worker.join(8)
     wait_until_free(held)
@@ -386,9 +386,9 @@ def test_no_control_on_the_page_is_named_like_a_property_of_its_form():
 def test_the_page_carries_rafis_caption_and_the_prompt_and_no_old_name():
     assert ("Synthetic patients. Nothing is ever sent. Guard mode is closed by design for two harms: leaking another "
             "patient's record and adding a phishing contact. Try to break it.") in PAGE_TEXT
-    assert 'placeholder="Your ghost: what should Wisp secretly do?"' in PAGE_TEXT
+    assert 'placeholder="Write a hidden instruction for Wisp…"' in PAGE_TEXT
     assert "Ghost in the Reply" not in PAGE_TEXT and "unbreakable" not in PAGE_TEXT.lower()
-    assert "<title>Haunted Inbox: try your own ghost</title>" in PAGE_TEXT
+    assert "<title>Haunted Inbox: try a haunting</title>" in PAGE_TEXT
 
 
 def test_the_sandbox_strings_follow_the_wording_rules():
@@ -397,4 +397,13 @@ def test_the_sandbox_strings_follow_the_wording_rules():
         low = text.lower()
         for banned in ("unbreakable", "no gaps", "hipaa violation", "psychotherapy", "gemma's guardrails"):
             assert banned not in low
-    assert dsb.BUSY == "Gemma 4 is busy, one run at a time"
+    assert dsb.BUSY == "Running both modes. One laptop GPU; one run at a time."
+
+
+def test_the_sandbox_page_uses_astras_strings_exactly():
+    assert "<h1>Try a haunting</h1>" in PAGE_TEXT
+    assert ">Run guard off + on</button>" in PAGE_TEXT
+    assert 'id="empty"' in PAGE_TEXT and "Your first comparison appears here." in PAGE_TEXT
+    running = PAGE_TEXT.split("const tick")[1].split("\n")[0]
+    assert "Running both modes. One laptop GPU; one run at a time." in running  # while it runs, it says why it is one at a time
+    assert "Try your own ghost" not in PAGE_TEXT and "Run: guard off, then guard on" not in PAGE_TEXT

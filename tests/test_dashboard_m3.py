@@ -285,6 +285,20 @@ def test_the_questions_are_the_demo_scripts_and_each_has_an_answer():
         assert f"{q} | {a}" in text.replace("\n", " "), q
 
 
+def test_every_say_line_is_the_demo_scripts_canonical_line():
+    script = ROOT / "planning" / "DEMO-SCRIPT.md"
+    if not script.is_file():
+        pytest.skip("planning/DEMO-SCRIPT.md is not in this checkout")
+    lines = {}
+    for m in re.finditer(r"^- (title|hook|reveal|possessed|whispering|why|closer): (.*)$", script.read_text(encoding="utf-8"), re.M):
+        line = re.sub(r"\s{2}\(opener by[^)]*\)\s*$", "", m.group(2))        # the attribution note is not part of the line
+        line = re.sub(r"\{[^}]*\}\s*\[([^\]]*)\]", r"\1", line)               # "{placeholder} [canonical value]" -> the value
+        lines[m.group(1)] = line.replace("{decoy}", "Casper Ghostly")           # a bare {decoy}: canonical is Casper
+    assert set(lines) == {s["id"] for s in steps.STEPS}
+    for step in steps.STEPS:
+        assert step["say"] == lines[step["id"]], step["id"]
+
+
 # --------------------------------------------------------------------------------------- command-line flags
 
 def test_practice_is_replay_only_and_never_builds_the_live_runner(monkeypatch, capsys):

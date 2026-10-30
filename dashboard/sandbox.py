@@ -4,9 +4,9 @@ guard off and guard on, live on the model.
 This is the one place the dashboard runs a stranger's text, so it is strict:
   - 2,000 characters per field, enforced here before anything else (the page's limit is only a convenience); a longer
     field is a 400 and the model is never called;
-  - one run at a time behind a lock; a second request is told "Gemma 4 is busy, one run at a time". A run that times out
+  - one run at a time behind a lock; a second request is told "Running both modes. One laptop GPU; one run at a time.". A run that times out
     keeps holding the lock until its thread has really finished, so a second click can never overlap it on the GPU;
-  - GUARD=0 gets 60 s and GUARD=1 gets 30 s; past that the side says "timed out". There is NO replay fallback: it is
+  - GUARD=0 gets 60 s and GUARD=1 gets 45 s (Rafi: 30 s timed out under a shared GPU); past that the side says "timed out". There is NO replay fallback: it is
     somebody's own input, and a saved run would be a lie about it;
   - every user string travels as JSON and reaches the page through textContent only (see sandbox.html).
 The model work is the lead's run_custom (ghostreply.variants / ghostreply.sandbox), one guard per call. Runs go to
@@ -25,11 +25,11 @@ from ghostreply.harness import ROOT, save_run
 
 from . import viewmodel
 
-BUSY = "Gemma 4 is busy, one run at a time"
+BUSY = "Running both modes. One laptop GPU; one run at a time."
 NEEDS_MODEL = "The sandbox needs a model: start the dashboard without --replay-only."
 NO_BACKEND = "The sandbox needs ghostreply's run_custom, which is not in this checkout."
 NO_REPLAY = "No replay fallback here: this is your own input, so every result is a live run or it says why not."
-TIMEOUTS = {0: 60, 1: 30}  # seconds, per side
+TIMEOUTS = {0: 60, 1: 45}  # seconds, per side (guard on was 30 s: the lead measured 27 s on a shared GPU)
 GRACE_S = 10.0  # wall-clock slack on top of the harness's own deadline before the request stops waiting for a thread
 MAX_BODY = 64 * 1024  # bytes of JSON: 2 x 2,000 characters even at four bytes each, with room to spare
 SANDBOX_DIR = ROOT / "runs" / "sandbox"
