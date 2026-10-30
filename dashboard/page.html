@@ -97,6 +97,22 @@ h1{font-size:var(--head);line-height:1.04;margin:0;font-weight:800;letter-spacin
 .meter.in .word{animation:slam .45s cubic-bezier(.2,1.3,.4,1) forwards}
 .lvl-still .word{color:var(--grn)} .lvl-whispering .word{color:var(--amb)} .lvl-possessed .word{color:var(--red)}
 .mcap{font-weight:800}
+
+/* the docked meter: a strip in the headline's place (same grid cell, so nothing moves) and the evidence under the columns */
+.headcell{display:grid;align-items:center;min-width:0}
+.headcell > *{grid-area:1/1;min-width:0}
+.headcell h1{transition:opacity .4s}
+.headcell h1.gone{opacity:0}
+.mstrip{display:flex;align-items:center;gap:1.6vw}
+.mstrip.hide{transform:none}
+.mstrip .sword{font-size:var(--head);font-weight:900;letter-spacing:.04em;line-height:1.04;white-space:nowrap}
+.mstrip.lvl-still .sword{color:var(--grn)} .mstrip.lvl-whispering .sword{color:var(--amb)} .mstrip.lvl-possessed .sword{color:var(--red)}
+.mstrip .track{width:auto;flex:0 0 14vw}
+.mstrip .scap{font-weight:800;flex:1;min-width:0}
+.evidence{display:flex;flex-direction:column;gap:.3vh;min-width:0}
+.evidence div{opacity:0;transition:opacity .5s}
+.evidence div.in{opacity:1}
+.evidence .r{color:var(--red);font-weight:700} .evidence .y{color:var(--amb);font-weight:700}
 .reasons{display:flex;flex-direction:column;gap:.4vh;align-items:flex-start;max-width:92%}
 .reasons div{opacity:0}
 .reasons div.in{opacity:1}
@@ -376,17 +392,26 @@ function draftCard(run, label) {
   return card;
 }
 
-function meterOverlay(run) {
+/* The meter in three parts. `box` is the slam: it fills the stage for SLAM_MS. Then it docks: `strip` (word + bars + caption)
+   takes the headline's place at the top, and `evidence` (the red / yellow lines) sits under the columns, so the trace, the
+   draft, the meter and the evidence are all on screen at once and nothing covers anything. */
+function meterParts(run) {
   const m = run.meter;
   const box = el("div", "meter");
-  if (!m) { box.append(el("div", "mcap dim", "No verdict yet.")); return { box, lines: [] }; }
-  box.classList.add("lvl-" + m.level);
+  if (!m) { box.append(el("div", "mcap dim", "No verdict yet.")); return { box, strip: el("div"), evidence: el("div"), lines: [] }; }
   const levels = ["still", "whispering", "possessed"];
-  const track = el("div", "track");
   const colors = { still: "var(--grn)", whispering: "var(--amb)", possessed: "var(--red)" };
-  levels.forEach((lv, i) => { const seg = el("i"); if (i <= levels.indexOf(m.level)) seg.style.background = colors[lv]; track.append(seg); });
-  box.append(track, el("div", "word", m.level.toUpperCase()), el("div", "mcap", m.caption));
-  const reasons = el("div", "reasons");
+  const word = m.level.toUpperCase();
+  const track = () => {
+    const t = el("div", "track");
+    levels.forEach((lv, i) => { const seg = el("i"); if (i <= levels.indexOf(m.level)) seg.style.background = colors[lv]; t.append(seg); });
+    return t;
+  };
+  box.classList.add("lvl-" + m.level);
+  box.append(track(), el("div", "word", word), el("div", "mcap", m.caption));
+  const strip = el("div", "mstrip hide lvl-" + m.level);
+  strip.append(el("div", "sword", word), track(), el("div", "scap", m.caption));
+  const evidence = el("div", "evidence");
   const lines = [];
   m.leak.concat(m.phishing).forEach((t) => lines.push(el("div", "r", "✗ " + t)));
   // the audience reads words; the raw kind names are for the presenter view only
@@ -394,14 +419,31 @@ function meterOverlay(run) {
     const plain = m.caught || (m.evidence.length ? "Caught before it could do harm" : null);
     if (plain) lines.push(el("div", "y", "▸ " + plain));
   }
-  lines.forEach((l) => reasons.append(l));
-  box.append(reasons);
-  return { box, lines };
+  lines.forEach((l) => evidence.append(l));
+  return { box, strip, evidence, lines };
+}
+
+/* A run step's headline row: the headline and, later, the docked meter strip share one grid cell, so swapping them moves nothing. */
+function runHead(stage, step) {
+  const head = el("div", "headcell");
+  const h1 = el("h1", null, step.headline);
+  head.append(h1);
+  stage.append(head);
+  return { head, h1 };
+}
+
+/* slam at tMeter; SLAM_MS later the overlay fades, the strip replaces the headline, and the evidence lines appear one by one */
+function scheduleMeter(parts, h1, tMeter) {
+  at(tMeter, () => reveal(parts.box));
+  at(tMeter + SLAM_MS, () => { parts.box.classList.remove("in"); reveal(parts.strip); h1.classList.add("gone"); });
+  parts.lines.forEach((l, i) => at(tMeter + SLAM_MS + 300 + 450 * i, () => reveal(l)));
 }
 
 /* ---- the steps ---- */
 // Step 3: the trace and the draft (DOB and MRN highlighted) are fully visible this long before POSSESSED slams in.
 const HOLD_BEFORE_SLAM_MS = 3200;
+// The slam fills the stage this long, then the meter docks to a strip at the top and the evidence shows beneath the columns.
+const SLAM_MS = 1500;
 const DRAW = {
   title(stage, step) {
     const c = el("div", "center");
@@ -451,7 +493,7 @@ const DRAW = {
   },
 
   possessed(stage, step) {
-    stage_h1(stage, step);
+    const { head, h1 } = runHead(stage, step);
     if (waitScreen(stage, "0")) return;
     const run = runFor(0);
     if (!run) return noRun(stage);
@@ -459,20 +501,18 @@ const DRAW = {
     const trace = traceCard(run, 500);
     const draft = draftCard(run, "Draft reply");
     cols.append(trace.card, draft);
-    stage.append(cols);
-    const meter = meterOverlay(run);
-    stage.append(meter.box);
+    const meter = meterParts(run);
+    head.append(meter.strip);
+    stage.append(cols, meter.evidence, meter.box);
     const tDraft = trace.done + 300;
     const tLit = tDraft + 500;
     at(tDraft, () => reveal(draft));
     at(tLit, () => draft.classList.add("lit"));
-    const tMeter = tLit + HOLD_BEFORE_SLAM_MS;  // the trace and the highlighted draft stay fully readable first
-    at(tMeter, () => reveal(meter.box));
-    meter.lines.forEach((l, i) => at(tMeter + 800 + 450 * i, () => reveal(l)));
+    scheduleMeter(meter, h1, tLit + HOLD_BEFORE_SLAM_MS);  // the trace and the highlighted draft stay fully readable first
   },
 
   whispering(stage, step) {
-    stage_h1(stage, step);
+    const { head, h1 } = runHead(stage, step);
     if (waitScreen(stage, "1")) return;
     const run = runFor(1);
     if (!run) return noRun(stage);
@@ -485,15 +525,13 @@ const DRAW = {
     const trace = codeCard(run, 1900, step.code_note);
     const draft = draftCard(run, "Reply from the hospital template");
     cols.append(trace.card, draft);
-    stage.append(cols);
-    const meter = meterOverlay(run);
-    stage.append(meter.box);
+    const meter = meterParts(run);
+    head.append(meter.strip);
+    stage.append(cols, meter.evidence, meter.box);
     at(300, () => reveal(jbox));
     const tDraft = trace.done + 700;
     at(tDraft, () => reveal(draft));
-    const tMeter = tDraft + 2200;
-    at(tMeter, () => reveal(meter.box));
-    meter.lines.forEach((l, i) => at(tMeter + 800 + 450 * i, () => reveal(l)));
+    scheduleMeter(meter, h1, tDraft + 2200);
   },
 
   why(stage, step) {
