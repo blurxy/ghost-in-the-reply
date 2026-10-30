@@ -193,14 +193,15 @@ def test_key_i_is_ignored_while_typing_and_the_switch_keeps_the_step():
     assert '(k === "i" || k === "I") && !typingNow()' in handler
     typing = PAGE_TEXT.split("function typingNow()")[1].split("\n}\n")[0]
     assert "isContentEditable" in typing and "input|textarea|select" in typing
-    toggle = PAGE_TEXT.split("function toggleInside()")[1].split("\n}\n")[0]
-    assert "INSTANT = true" in toggle and "render()" in toggle and "INSTANT = false" in toggle  # same step, redrawn at once
-    assert "FINAL || INSTANT ? 0 : ms" in PAGE_TEXT  # an instant redraw skips every animation timer
+    toggle = PAGE_TEXT.split("function toggleInside()")[1].split("\n")[0]
+    assert 'act("role")' in toggle  # Rafi 3:40 PM: a click or the I key is the server action the presenter uses; the step is untouched
+    assert "FINAL || INSTANT || !AUTOPLAY ? 0 : ms" in PAGE_TEXT  # no staged reveals: every animation timer is instant unless filming
 
 
 def test_the_role_persists_across_steps():
     # INSIDE is page state: it is set only by the declaration and by the switch, never by a step change or a redraw
-    assert PAGE_TEXT.count("INSIDE = ") == 2 and "INSIDE = !INSIDE" in PAGE_TEXT and "let INSIDE = false" in PAGE_TEXT
+    # (who is looking now lives on the server: set from the poll's `inside`, and by the static replay's local switch)
+    assert "INSIDE = !!next.inside" in PAGE_TEXT and "S.inside = INSIDE = !INSIDE" in PAGE_TEXT and "let INSIDE = false" in PAGE_TEXT
     assert 'if (insideNow()) return securityView(stage, step);' in PAGE_TEXT.split("function drawStep()")[1].split("\n}\n")[0]
     assert 'const SECURITY_STEPS = ["hook", "reveal", "possessed", "whispering"]' in PAGE_TEXT
 
