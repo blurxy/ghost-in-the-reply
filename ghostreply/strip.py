@@ -18,16 +18,22 @@ The pass repeats until it changes nothing, at most MAX_PASSES times. If the text
 that, every remaining < > & is dropped (unstable_markup), so the result is always a fixed point.
 
 Guarantees: pure (no I/O), total (never raises, no recursion), idempotent (strip(clean)[0] == clean for
-every input), and no markup survives. Cost of the last guarantee, accepted by Rafi: visible text that merely
-looks like markup (&lt;b&gt;) is over-stripped.
+every input), and no tag, comment, entity or invisible character survives that a parser would act on. A lone
+< or & in ordinary text ("BP 120<140", "AT&T") is kept, and so is a < that no tag can start from, such as <
+followed by a combining mark: a browser shows those as text too. Cost of the guarantee, accepted by Rafi:
+visible text that merely looks like markup (&lt;b&gt;) is over-stripped.
 
 "Hidden" means exactly this list, and the UI claims nothing beyond it: display:none, visibility:hidden,
-font-size:0, opacity:0, the hidden attribute, and the elements script, style, template, head, title,
-noscript, iframe, noembed, noframes, datalist. If any declaration hides, the element counts as hidden (fail
-closed). Not detected: colour-on-colour, off-screen positioning, zero height or width. An unclosed hidden
-element or comment runs to the end of the text, and a tag cut off by the end of the text is dropped, as a
-browser would. Optional end tags (an unclosed <p>) are not implied, so a hidden <p> can hide more than a
-browser would. Known false positive: a ZWJ or variation selector inside a real emoji is dropped and recorded.
+the hidden attribute, a font-size of zero or under 1px (0.1em, 10%), an opacity of zero or under 1%, and the
+elements script, style, template, head, title, noscript, iframe, noembed, noframes, datalist, dialog,
+canvas, video, audio, object and the SVG-only desc, metadata, defs, symbol, clippath, mask, pattern,
+marker. If any declaration hides, the element counts as hidden (fail closed). Not detected: colour-on-colour,
+off-screen positioning, zero height or width, and rules that live in a <style> block (the block itself is
+dropped and recorded, so the meter still says Whispering, but a span hidden only by its class reaches the
+model). An unclosed hidden element or comment runs to the end of the text, and a tag cut off by the end of
+the text is dropped, as a browser would. Optional end tags (an unclosed <p>) are not implied, so a hidden <p>
+can hide more than a browser would. Known false positive: a ZWJ or variation selector inside a real emoji is
+dropped and recorded.
 """
 
 from __future__ import annotations
@@ -49,7 +55,10 @@ _NAME_END = _WS + "/>"
 _ATTR_END = _WS + "/>="
 _ASCII_LETTERS = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 VOID_TAGS = frozenset("area base br col embed hr img input link meta param source track wbr".split())
-HIDDEN_TAGS = frozenset("script style template head title noscript iframe noembed noframes datalist".split())
+HIDDEN_TAGS = frozenset(
+    "script style template head title noscript iframe noembed noframes datalist dialog canvas video audio object "
+    "desc metadata defs symbol clippath mask pattern marker".split()
+)
 RAWTEXT_TAGS = frozenset("script style iframe noembed noframes xmp title textarea".split())
 BLOCK_TAGS = frozenset(
     "address article aside blockquote br dd div dl dt fieldset figure footer form h1 h2 h3 h4 h5 h6 header hr "
@@ -61,8 +70,11 @@ _RAWTEXT_END = {n: re.compile(r"</" + n + r"(?=[\t\n\f\r />])", re.I) for n in R
 _CHARREF = re.compile(r"&(#[0-9]+;?|#[xX][0-9a-fA-F]+;?|[^\t\n\f <&#;]{1,32};?)")
 _CSS_COMMENT = re.compile(r"/\*.*?(?:\*/|\Z)", re.S)
 _CSS_ESCAPE = re.compile(r"\\(?:([0-9a-fA-F]{1,6})[ \t\n\f\r]?|(.))", re.S)
-_CSS_ZERO = re.compile(r"[+-]?(?:0+\.?0*|\.0+)(?:[a-z%]+)?\Z")
+_CSS_NUMBER = re.compile(r"([+-]?(?:\d+\.?\d*|\.\d+))([a-z%]*)\Z")
 _CSS_IMPORTANT = re.compile(r"!\s*important\s*\Z")
+# A font-size below these counts as hidden (unitless is only valid for 0). Below 1 px nobody can read it.
+_TINY_FONT = {"px": 1.0, "pt": 0.75, "em": 0.1, "rem": 0.1, "ex": 0.1, "ch": 0.1, "%": 10.0,
+              "vw": 0.1, "vh": 0.1, "vmin": 0.1, "vmax": 0.1}
 
 _MERGE_KINDS = frozenset(KINDS) - {"hidden_html", "html_comment"}
 
@@ -246,10 +258,23 @@ def _hidden_reason(name: str, attrs: dict[str, str]) -> str | None:
             return "display:none"
         if prop == "visibility" and value in ("hidden", "collapse"):
             return "visibility:hidden"
-        if prop == "font-size" and _CSS_ZERO.match(value):
-            return "font-size:0"
-        if prop == "opacity" and _CSS_ZERO.match(value):
-            return "opacity:0"
+        if prop == "font-size":
+            m = _CSS_NUMBER.match(value)
+            if m:
+                number, unit = float(m.group(1)), m.group(2)
+                limit = _TINY_FONT.get(unit)
+                if number == 0:
+                    return "font-size:0"
+                if limit is not None and 0 < number < limit:  # a negative size is invalid CSS: the browser ignores it
+                    return "tiny font-size"
+        if prop == "opacity":
+            m = _CSS_NUMBER.match(value)
+            if m:
+                number, unit = float(m.group(1)), m.group(2)
+                if number == 0 and unit in ("", "%"):
+                    return "opacity:0"
+                if (unit == "" and number <= 0.01) or (unit == "%" and number <= 1):
+                    return "near-zero opacity"
     return None
 
 
